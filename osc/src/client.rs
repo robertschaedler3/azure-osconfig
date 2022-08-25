@@ -67,16 +67,21 @@ impl Default for Client {
     }
 }
 
-trait ValueType {}
+// Marker trait for the value equivalent of a MIM type (schema)
+// TODO: move this to mim::schema ???
+// trait ValueType {}
 
-struct Response<T>
-where
-    T: ValueType,
-{
-    time: u64,
-    status: u64,
-    body: T,
-}
+// TODO: use this for all plaform responses (Result<Response, Error>)
+// maybe just use hyper::Response ???
+
+// struct Response<T>
+// where
+//     T: ValueType,
+// {
+//     time: u64, // TODO: use chrono::DateTime
+//     status: u64, // TODO: use hyper::StatusCode
+//     body: T,
+// }
 
 impl Client {
     async fn send<T>(&self, path: &str, body: T) -> Result<String, Box<dyn Error + Send + Sync>>

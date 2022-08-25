@@ -1,15 +1,20 @@
+// TODO: refactor up everything in this file to mim::schema, mim::value, etc...
+
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, error::Error, fs};
 
 #[derive(Debug)]
 pub struct Schema {
     schema: HashMap<String, HashMap<String, MimObjectSchema>>,
+    // TODO: this is hacky, but it works for handling errors now
     errors: Vec<Box<dyn Error>>,
 }
 
 // TODO: custom shema error type
 
 impl Schema {
+
+    // TODO: this should probably only load a single shema file not all schemas in a directory
     pub fn load(dir: String) -> Result<Self, Box<dyn Error>> {
         let mut schema = HashMap::new();
         let mut errors = Vec::new();
@@ -36,10 +41,13 @@ impl Schema {
                     }
                 }
                 Err(e) => {
+                    // println!("{}: {}", entry.file_name().to_str().unwrap(), e);
                     errors.push(format!("{}: {}", path_str, e).into());
                 }
             }
         }
+
+        // TODO: return errors in Result<>...
         Ok(Self { schema, errors })
     }
 
@@ -165,7 +173,8 @@ struct MimObjectSchema {
 #[serde(untagged)]
 pub enum TypeSchema {
     Primitive(Primitive),
-    Enum(Enum),
+    IntegerEnum(IntegerEnum),
+    StringEnum(StringEnum),
     Array(Array),
     Object(Object),
     // Map(Map),
@@ -183,41 +192,86 @@ pub enum Primitive {
     Boolean,
 }
 
+// TODO: merge this (and all sub-types) with StringEnum
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename = "enum")]
-pub struct Enum {
+pub struct IntegerEnum {
     #[serde(rename = "valueSchema")]
-    value_schema: EnumSchema,
+    value_schema: IntegerEnumSchema,
 
     #[serde(rename = "enumValues")]
-    values: Vec<EnumValue>,
+    values: Vec<IntegerEnumValue>,
 }
 
-impl Enum {
-    pub fn values(&self) -> Vec<EnumValue> {
+impl IntegerEnum {
+    pub fn values(&self) -> Vec<IntegerEnumValue> {
         self.values.clone()
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum EnumSchema {
+pub enum IntegerEnumSchema {
     #[serde(rename = "integer")]
     Integer,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EnumValue {
+pub struct IntegerEnumValue {
     name: String,
 
     #[serde(rename = "enumValue")]
     enum_value: u32,
 }
 
-impl EnumValue {
+impl IntegerEnumValue {
     pub fn name(&self) -> String {
         self.name.clone()
     }
 }
+
+// TODO: merge this (and all sub-types) with IntegerEnum
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename = "enum")]
+pub struct StringEnum {
+    #[serde(rename = "valueSchema")]
+    value_schema: StringEnumSchema,
+
+    #[serde(rename = "enumValues")]
+    values: Vec<StringEnumValue>,
+}
+
+impl StringEnum {
+    pub fn values(&self) -> Vec<StringEnumValue> {
+        self.values.clone()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum StringEnumSchema {
+    #[serde(rename = "string")]
+    String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StringEnumValue {
+    name: String,
+
+    #[serde(rename = "enumValue")]
+    enum_value: String,
+}
+
+impl StringEnumValue {
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+}
+
+// TODO: use something like this for enums (and possibly other types)
+// two separate enum types is hacky/messy
+// pub enum EnumValue {
+//     Integer(i64),
+//     String(String),
+// }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename = "array")]
@@ -270,7 +324,8 @@ impl Object {
 #[serde(untagged)]
 pub enum Field {
     Primitive(PrimitiveField),
-    Enum(EnumField),
+    IntegerEnum(IntegerEnumField),
+    StringEnum(StringEnumField),
     Array(ArrayField),
     // Map(MapField),
 }
@@ -282,9 +337,15 @@ pub struct PrimitiveField {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EnumField {
+pub struct IntegerEnumField {
     name: String,
-    schema: Enum,
+    schema: IntegerEnum,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StringEnumField {
+    name: String,
+    schema: StringEnum,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -306,7 +367,8 @@ impl Field {
     pub fn name(&self) -> String {
         match self {
             Field::Primitive(primitive) => primitive.name.clone(),
-            Field::Enum(enum_field) => enum_field.name.clone(),
+            Field::IntegerEnum(enum_field) => enum_field.name.clone(),
+            Field::StringEnum(enum_field) => enum_field.name.clone(),
             Field::Array(array_field) => array_field.name.clone(),
             // Field::Map(map_field) => map_field.name.clone(),
         }
@@ -315,7 +377,8 @@ impl Field {
     pub fn schema(&self) -> TypeSchema {
         match self {
             Field::Primitive(primitive) => primitive.schema.clone().into(),
-            Field::Enum(enum_field) => enum_field.schema.clone().into(),
+            Field::IntegerEnum(enum_field) => enum_field.schema.clone().into(),
+            Field::StringEnum(enum_field) => enum_field.schema.clone().into(),
             Field::Array(array_field) => array_field.schema.clone().into(),
             // Field::Map(map_field) => map_field.schema.clone(),
         }
@@ -328,9 +391,15 @@ impl From<Primitive> for TypeSchema {
     }
 }
 
-impl From<Enum> for TypeSchema {
-    fn from(enum_: Enum) -> Self {
-        TypeSchema::Enum(enum_)
+impl From<IntegerEnum> for TypeSchema {
+    fn from(enum_: IntegerEnum) -> Self {
+        TypeSchema::IntegerEnum(enum_)
+    }
+}
+
+impl From<StringEnum> for TypeSchema {
+    fn from(enum_: StringEnum) -> Self {
+        TypeSchema::StringEnum(enum_)
     }
 }
 
