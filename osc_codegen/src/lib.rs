@@ -1,6 +1,5 @@
 mod common;
 mod osc_component;
-// mod osc_module;
 mod osc_object;
 
 use proc_macro::TokenStream;
@@ -18,20 +17,3 @@ pub fn osc_component(args: TokenStream, input: TokenStream) -> proc_macro::Token
         .unwrap_or_abort()
         .into()
 }
-
-#[proc_macro_error]
-#[proc_macro_attribute]
-pub fn reported(_args: TokenStream, input: TokenStream) -> proc_macro::TokenStream {
-    // NOTE: eventually this will need to wrap the object call for serialization, complex return types (Result, Option), async
-    input
-}
-
-#[proc_macro_error]
-#[proc_macro_attribute]
-pub fn desired(_args: TokenStream, input: TokenStream) -> proc_macro::TokenStream {
-    // NOTE: eventually this will need to wrap the object call for serialization, complex return types (Result, Option), async
-    input
-}
-
-// TODO: there needs to be a #[osc_object] attribute for complex struct/enum types (for reported/desired properties),
-// this should be possible to do automatically with in the component macro, but it may be better to have a separate attribute
