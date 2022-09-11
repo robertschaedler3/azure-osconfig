@@ -90,6 +90,7 @@ impl Client {
     {
         let uri: Uri = Uri::new("/run/osconfig/mpid.sock", path);
         let payload = serde_json::to_string(&body)?;
+        println!("{}", payload);
         let req = Request::builder()
             .method(Method::POST)
             .uri(uri)
