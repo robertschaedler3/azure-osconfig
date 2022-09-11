@@ -90,11 +90,14 @@ impl ToTokens for Definition {
         let reported_objects = reported_objects.iter().map(|o| {
             let name = &o.name;
             let ident = &o.ident;
+            let _ty = &o.ty;
             quote! {
-                #name => self.#ident(),
+                #name => Ok(serde_json::to_value(&self.#ident()).unwrap()),
             }
         });
 
+        // TODO: desired objects should have a return code (not just an int, maybe Result<_, Error>)
+        // how to interpret arbitrary return types as success/failure
         let desired_objects = desired_objects.iter().map(|o| {
             let name = &o.name;
             let ident = &o.ident;
@@ -103,52 +106,51 @@ impl ToTokens for Definition {
             }
         });
 
-        // TODO: move the module generation (and eventually MMI generation) somewhere else later
-        // TODO: get the module name from #[osc_component(module = "name")] (default: "ComponentModule")
         tokens.extend(quote! {
-            struct Module {
-                component: #ident,
-            }
-
-            impl Module{
-                pub fn new() -> Self {
-                    Self {
-                        component: #ident::default(),
+            impl #ident {
+            // REVIEW: why doesn't this work
+            // impl ::osc::module::Component for #ident {
+                fn reported(&self, object: &str) -> Result<osc::module::Object, osc::error::Error> {
+                    match object {
+                        #(#reported_objects)*
+                        _ => Err(osc::error::Error::from(format!("unknown object: {}", object))),
                     }
                 }
 
-                pub fn get(&self, component: &str, object: &str) -> String {
-                    match component {
-                        #name => self.component.reported(object),
-                        _ => "Component not found".to_string(),
-                    }
-                }
-
-                pub fn set(&mut self, component: &str, object: &str, value: &str) {
-                    match component {
-                        #name => self.component.desired(object, value),
-                        _ => {},
-                        // _ => String::new("Component not found"),
+                fn desired(&mut self, object: &str, value: &str) {
+                    match object {
+                        #(#desired_objects)*
+                        _ => {}
                     }
                 }
             }
         });
 
+        // TODO: move the module generation (and eventually MMI generation) somewhere else later
+        // TODO: get the module name from #[osc_component(module = "name")] for generating multi-component modules
         tokens.extend(quote! {
-            impl ::osc::module::Component for #ident {
-                fn reported(&self, object: &str) -> String {
-                    // println!("reported: {}", object);
-                    match object {
-                        #(#reported_objects)*
-                        _ => String::new(),
+            struct MyModule {
+                component: #ident,
+            }
+
+            impl ::osc::module::Module for MyModule {
+                fn new(_: &str, _: u32) -> Self {
+                    Self {
+                        component: #ident::default(),
                     }
                 }
 
-                fn desired(&mut self, object: &str, value: &str) {
-                    // println!("desired: {} {}", object, value);
-                    match object {
-                        #(#desired_objects)*
-                        _ => {}
+                fn get(&self, component: &str, object: &str) -> Result<osc::module::Object, osc::error::Error> {
+                    match component {
+                        #name => self.component.reported(object),
+                        _ => Err(osc::error::Error::from(format!("unknown component: {}", component))),
+                    }
+                }
+
+                fn set(&mut self, component: &str, object: &str, value: &str) {
+                    match component {
+                        #name => self.component.desired(object, value),
+                        _ => println!("unknown component: {}", component),
                     }
                 }
             }

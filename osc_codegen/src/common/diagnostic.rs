@@ -1,3 +1,6 @@
+// TODO: remove this and clean up this file as needed
+#![allow(dead_code)]
+
 use std::fmt;
 
 use proc_macro2::Span;
