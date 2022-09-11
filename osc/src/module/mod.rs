@@ -10,16 +10,15 @@ pub trait Module {
     // TODO: use a better return type (may need Value type for osc_object payloads)
     fn get(&self, component: &str, object: &str) -> Result<Object, Error>;
 
-    // TODO: allow setting complex types (similar to how they are returned from get())
-    fn set(&mut self, component: &str, object: &str, value: &str);
+    fn set(&mut self, component: &str, object: &str, value: &str) -> Result<(), Error>;
 }
 
 pub trait Component {
     ///
-    fn reported(&self, object: &str) -> Result<Object, Error>;
+    fn reported(&self, name: &str) -> Result<Object, Error>;
 
     ///
-    fn desired(&mut self, object: &str, value: &str);
+    fn desired(&mut self, name: &str, value: Object) -> Result<(), Error>;
 }
 
 pub type Object = serde_json::Value;

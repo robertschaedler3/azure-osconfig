@@ -32,6 +32,9 @@ impl Parse for Attr {
                     out.name = Some(name.value());
                 }
                 "reported" | "desired" => {
+                    // TODO: check the arguments for the kind
+                    // (nice errors for reported, type conversion/deserialization for desired)
+
                     // TODO: there has to be a better way to do this
                     let _ = input.parse::<token::Comma>();
                     out.kind = match ident.to_string().as_str() {

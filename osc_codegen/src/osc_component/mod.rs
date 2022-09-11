@@ -87,22 +87,25 @@ impl ToTokens for Definition {
         let reported_objects = &self.reported_objects;
         let desired_objects = &self.desired_objects;
 
+        // TODO: handle complex return codes (e.g. `Result<_, _>`)
+
         let reported_objects = reported_objects.iter().map(|o| {
             let name = &o.name;
             let ident = &o.ident;
             let _ty = &o.ty;
+            // TODO: properly convert from serde result to osc result (with ? operator)
             quote! {
                 #name => Ok(serde_json::to_value(&self.#ident()).unwrap()),
             }
         });
 
-        // TODO: desired objects should have a return code (not just an int, maybe Result<_, Error>)
-        // how to interpret arbitrary return types as success/failure
+        // TODO: check (and validate/restrict) for return value from `desired` methods
+
         let desired_objects = desired_objects.iter().map(|o| {
             let name = &o.name;
             let ident = &o.ident;
             quote! {
-                #name => self.#ident(value),
+                #name => Ok(self.#ident(serde_json::from_value::<Complex>(value).unwrap())),
             }
         });
 
@@ -110,17 +113,17 @@ impl ToTokens for Definition {
             impl #ident {
             // REVIEW: why doesn't this work
             // impl ::osc::module::Component for #ident {
-                fn reported(&self, object: &str) -> Result<osc::module::Object, osc::error::Error> {
-                    match object {
+                fn reported(&self, name: &str) -> Result<osc::module::Object, osc::error::Error> {
+                    match name {
                         #(#reported_objects)*
-                        _ => Err(osc::error::Error::from(format!("unknown object: {}", object))),
+                        _ => Err(osc::error::Error::from(format!("unknown object: {}", name))),
                     }
                 }
 
-                fn desired(&mut self, object: &str, value: &str) {
-                    match object {
+                fn desired(&mut self, name: &str, value: osc::module::Object) -> Result<(), osc::error::Error> {
+                    match name {
                         #(#desired_objects)*
-                        _ => {}
+                        _ => Err(osc::error::Error::from(format!("unknown object: {}", name))),
                     }
                 }
             }
@@ -147,10 +150,11 @@ impl ToTokens for Definition {
                     }
                 }
 
-                fn set(&mut self, component: &str, object: &str, value: &str) {
+                fn set(&mut self, component: &str, object: &str, value: &str) -> Result<(), osc::error::Error> {
+                    let value = serde_json::from_str::<osc::module::Object>(value).unwrap();
                     match component {
                         #name => self.component.desired(object, value),
-                        _ => println!("unknown component: {}", component),
+                        _ => Err(osc::error::Error::from(format!("unknown component: {}", component))),
                     }
                 }
             }
