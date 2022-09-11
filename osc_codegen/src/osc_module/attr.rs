@@ -19,9 +19,9 @@ const ERR: diagnostic::Scope = diagnostic::Scope::ComponentAttr;
 pub fn expand(attr_args: TokenStream, body: TokenStream) -> syn::Result<TokenStream> {
     if let Ok(mut ast) = syn::parse2::<syn::ItemImpl>(body) {
         if ast.trait_.is_none() {
-            let impl_attrs = parse::attr::unite(("osc_component", &attr_args), &ast.attrs);
-            ast.attrs = parse::attr::strip("osc_component", ast.attrs);
-            return expand_on_impl(Attr::from_attrs("osc_component", &impl_attrs)?, ast);
+            let impl_attrs = parse::attr::unite(("osc_module", &attr_args), &ast.attrs);
+            ast.attrs = parse::attr::strip("osc_module", ast.attrs);
+            return expand_on_impl(Attr::from_attrs("osc_module", &impl_attrs)?, ast);
         }
     }
 

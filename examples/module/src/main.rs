@@ -1,4 +1,4 @@
-use osc::osc_component;
+use osc::osc_module;
 use serde::{Deserialize, Serialize};
 
 // REVIEW: try to do this without Default
@@ -80,7 +80,7 @@ struct Something {
     complex: Complex,
 }
 
-#[osc_component]
+#[osc_module]
 impl Something {
     #[osc_object(reported)]
     fn something(&self) -> &str {

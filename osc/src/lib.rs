@@ -3,7 +3,7 @@ pub use {serde, serde_json};
 
 // Depend on osc_codegen and re-export everything in it.
 // This allows users to just depend on osc and automatically get the derive functionality.
-pub use osc_codegen::osc_component;
+pub use osc_codegen::osc_module;
 
 pub mod client;
 pub mod config;
