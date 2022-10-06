@@ -1,7 +1,7 @@
 pub(crate) mod attr;
 // pub(crate) mod derive;
 
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
     ext::IdentExt as _,
@@ -12,10 +12,10 @@ use syn::{
 use crate::common::filter_attrs;
 use crate::osc_object;
 
-/// [`diagnostic::Scope`] of errors for `#[osc_component]` macro.
+/// [`diagnostic::Scope`] of errors for `#[osc_module]` macro.
 // const ERR: diagnostic::Scope = diagnostic::Scope::ComponentAttr;
 
-/// Available arguments behind `#[osc_component]` attribute.
+/// Available arguments behind `#[osc_module]` attribute.
 #[derive(Debug, Default)]
 pub(crate) struct Attr {
     /// Explictly specified name of this component.
@@ -79,15 +79,14 @@ struct Definition {
     pub(crate) desired_objects: Vec<osc_object::Definition>,
 }
 
-impl ToTokens for Definition {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+impl Definition {
+    pub(crate) fn impl_component_struct_tokens(&self) -> TokenStream {
         let name = &self.name;
-
         let ident = &self.ident;
+
+        // TODO: try to consolidate this code
         let reported_objects = &self.reported_objects;
         let desired_objects = &self.desired_objects;
-
-        // TODO: handle complex return codes (e.g. `Result<_, _>`)
 
         let reported_objects = reported_objects.iter().map(|o| {
             let name = &o.name;
@@ -104,15 +103,20 @@ impl ToTokens for Definition {
         let desired_objects = desired_objects.iter().map(|o| {
             let name = &o.name;
             let ident = &o.ident;
+            let ty = &o.ty;
             quote! {
-                #name => Ok(self.#ident(serde_json::from_value::<Complex>(value).unwrap())),
+                #name => Ok(self.#ident(serde_json::from_value::<#ty>(value).unwrap())),
             }
         });
 
-        tokens.extend(quote! {
-            impl #ident {
-            // REVIEW: why doesn't this work
-            // impl ::osc::module::Component for #ident {
+        // TODO: handle complex return codes from property resolvers (e.g. `Result<_, _>`)
+
+        quote! {
+            impl osc::module::Component for #ident {
+                fn name(&self) -> &str {
+                    #name
+                }
+
                 fn reported(&self, name: &str) -> Result<osc::module::Object, osc::error::Error> {
                     match name {
                         #(#reported_objects)*
@@ -120,44 +124,103 @@ impl ToTokens for Definition {
                     }
                 }
 
-                fn desired(&mut self, name: &str, value: osc::module::Object) -> Result<(), osc::error::Error> {
+                fn desired(&mut self, name: &str, value: serde_json::Value) -> Result<(), osc::error::Error> {
                     match name {
                         #(#desired_objects)*
                         _ => Err(osc::error::Error::from(format!("unknown object: {}", name))),
                     }
                 }
             }
-        });
+        }
+    }
 
-        // TODO: move the module generation (and eventually MMI generation) somewhere else later
-        // TODO: get the module name from #[osc_component(module = "name")] for generating multi-component modules
-        tokens.extend(quote! {
-            struct MyModule {
-                component: #ident,
-            }
+    pub(crate) fn impl_module_tokens(&self) -> TokenStream {
+        let ident = &self.ident;
+        let module_ident = syn::Ident::new(&format!("{}Module", ident), ident.span());
 
-            impl ::osc::module::Module for MyModule {
-                fn new(_: &str, _: u32) -> Self {
-                    Self {
-                        component: #ident::default(),
-                    }
-                }
+        quote! {
+            type #module_ident = osc::module::Module<#ident>;
+        }
+    }
 
-                fn get(&self, component: &str, object: &str) -> Result<osc::module::Object, osc::error::Error> {
-                    match component {
-                        #name => self.component.reported(object),
-                        _ => Err(osc::error::Error::from(format!("unknown component: {}", component))),
-                    }
-                }
+    pub(crate) fn impl_module_interface_tokens(&self) -> TokenStream {
+        let ident = &self.ident;
+        let module_ident = syn::Ident::new(&format!("{}Module", ident), ident.span());
 
-                fn set(&mut self, component: &str, object: &str, value: &str) -> Result<(), osc::error::Error> {
-                    let value = serde_json::from_str::<osc::module::Object>(value).unwrap();
-                    match component {
-                        #name => self.component.desired(object, value),
-                        _ => Err(osc::error::Error::from(format!("unknown component: {}", component))),
-                    }
+        quote! {
+            #[no_mangle]
+            pub extern "C" fn MmiOpen(client_name: *const libc::c_char, max_payload_size: libc::c_uint) -> osc::module::interface::Handle {
+                if let Ok(module) = osc::module::interface::open::<#module_ident>(client_name, max_payload_size) {
+                    Box::into_raw(Box::new(module)) as osc::module::interface::Handle
+                } else {
+                    // TODO: log error
+                    println!("MmiOpen failed");
+                    ptr::null_mut()
                 }
             }
-        });
+
+            #[no_mangle]
+            pub extern "C" fn MmiClose(client_session: osc::module::interface::Handle) {
+                osc::module::interface::close::<#module_ident>(client_session);
+            }
+
+            #[no_mangle]
+            pub extern "C" fn MmiSet(
+                client_session: osc::module::interface::Handle,
+                component_name: *const libc::c_char,
+                object_name: *const libc::c_char,
+                payload: osc::module::interface::JsonString,
+                payload_size_bytes: libc::c_int,
+            ) -> libc::c_int {
+                if let Err(err) = osc::module::interface::set::<#module_ident>(
+                    client_session,
+                    component_name,
+                    object_name,
+                    payload,
+                    payload_size_bytes,
+                ) {
+                    // TODO: log error
+                    println!("error: {}", err);
+
+                    // TODO: convert error to appropriate error code
+                    libc::EINVAL
+                } else {
+                    0
+                }
+            }
+
+            #[no_mangle]
+            pub extern "C" fn MmiGet(
+                client_session: osc::module::interface::Handle,
+                component_name: *const libc::c_char,
+                object_name: *const libc::c_char,
+                payload: *mut osc::module::interface::JsonString,
+                payload_size_bytes: *mut libc::c_int,
+            ) -> libc::c_int {
+                if let Err(err) = osc::module::interface::get::<#module_ident>(
+                    client_session,
+                    component_name,
+                    object_name,
+                    payload,
+                    payload_size_bytes,
+                ) {
+                    // TODO: log error
+                    println!("error: {}", err);
+
+                    // TODO: convert error to appropriate error code
+                    libc::EINVAL
+                } else {
+                    0
+                }
+            }
+        }
+    }
+}
+
+impl ToTokens for Definition {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        self.impl_component_struct_tokens().to_tokens(tokens);
+        self.impl_module_tokens().to_tokens(tokens);
+        self.impl_module_interface_tokens().to_tokens(tokens);
     }
 }

@@ -1,13 +1,105 @@
+use clap::Subcommand;
 use colored::Colorize;
 use colored_json::to_colored_json_auto;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, Select};
+// use osc::log::Log;
 use std::error::Error;
+// use std::io::{BufRead, BufReader};
+// use std::path::Path;
+// use std::process::{Command, Stdio};
+// use std::sync::mpsc;
 
-use osc::client::Client;
+use crate::command::Platform;
+use osc::platform::Client;
 use osc::mim::{Primitive, Schema, TypeSchema};
 
-// use crate::config::Config;
+// TODO: return a Result
+pub async fn execute(platform: Platform) {
+    // TODO: fix this cfg module location
+    // let cfg = config::Config::load();
+    let handler = Handler::new();
+    match platform.command {
+        Command::Get { component, object } => {
+            handler.get(component, object).await;
+        }
+        Command::Set {
+            component,
+            object,
+            value,
+        } => {
+            handler.set(component, object, value).await;
+        }
+        Command::Status => {
+            // TODO: check the running status of the platform (daemon or app)
+        }
+        Command::Monitor { errors, verbose } => {
+            // let (tx, rx) = channel::<Log>();
+
+            // if verbose {
+            //     // Modify "full logging" in the platform config (/etc/osconfig/osconfig.json) to "1"
+            //     let mut file = File::open("/etc/osconfig/osconfig.json").unwrap();
+            //     let mut contents = String::new();
+            //     file.read_to_string(&mut contents).unwrap();
+            //     let mut config: Config = serde_json::from_str(&contents).unwrap();
+            //     config.full_logging = true;
+            //     let config = serde_json::to_string_pretty(&config).unwrap();
+
+            //     let mut file = File::create("/etc/osconfig/osconfig.json").unwrap();
+            //     file.write_all(config.as_bytes()).unwrap();
+            // }
+
+            // TODO: check if this file has been binplaced before trying to execute it
+            // std::thread::spawn(move || {
+            //     exec_stream("/usr/bin/osconfig-platform", tx);
+            // });
+
+            // loop {
+            //     let log = rx.recv().unwrap();
+            //     if errors && log.level == log::Level::Error {
+            //         println!("{}", log);
+            //     } else if !errors {
+            //         println!("{}", log);
+            //     }
+            // }
+        }
+    }
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    #[clap(arg_required_else_help = true)]
+    Status,
+    // Open {
+    //     #[clap(value_parser)]
+    //     client_name: String,
+    // },
+    Get {
+        #[clap(value_parser)]
+        component: Option<String>,
+
+        #[clap(value_parser)]
+        object: Option<String>,
+    },
+    Set {
+        #[clap(value_parser)]
+        component: Option<String>,
+
+        #[clap(value_parser)]
+        object: Option<String>,
+
+        #[clap(value_parser)]
+        value: Option<String>,
+    },
+    Monitor {
+        // optional flags for only showing errors or warnings
+        #[clap(short = 'e', long = "errors")]
+        errors: bool,
+
+        #[clap(short = 'v', long = "verbose")]
+        verbose: bool,
+    },
+}
 
 #[derive(Debug)]
 pub struct Handler {
@@ -124,11 +216,14 @@ impl Handler {
 
     // TODO: return Result<> to propagate errors
     async fn get_session(&self) -> String {
-        // TODO: if a session does not exist, prompt for one
+        // Check if a session has been stored in the config file
+        // if a session does not exist, prompt for one
+
         // let session = self.prompt("Select a session", sessions);
         // self.config.session.clone()
 
         self.client.open("blah".to_string(), 4096).await.unwrap()
+        // "A32AFE9B-335D-A603-4EA9-819D2DEC0060".to_string()
     }
 
     // TODO: return Result<> to propagate errors
@@ -198,8 +293,31 @@ impl Handler {
 
         println!("{}", serde_json::to_string_pretty(&value).unwrap());
 
-        let _ = self.client.set(session, component, object, value).await;
+        let result = self.client.set(session, component, object, value).await;
         // MpiSet does not return a result string
-        // self.print_result(result);
+        self.print_result(result);
     }
 }
+
+// pub fn exec_stream<P: AsRef<Path>>(binary: P, tx: mpsc::Sender<Log>) {
+//     let mut cmd = Command::new(binary.as_ref())
+//         .stdout(Stdio::piped())
+//         .spawn()
+//         .unwrap();
+
+//     {
+//         let stdout = cmd.stdout.as_mut().unwrap();
+//         let stdout_reader = BufReader::new(stdout);
+//         let stdout_lines = stdout_reader.lines();
+
+//         for line in stdout_lines {
+//             let trace = Log::trace(line.unwrap()).unwrap();
+//             tx.send(trace).unwrap();
+
+//             // TODO: parse the line following the osconfig logging format
+//             // TODO: colorize output of logs
+//         }
+//     }
+
+//     cmd.wait().unwrap();
+// }

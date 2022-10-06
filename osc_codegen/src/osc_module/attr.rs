@@ -12,10 +12,10 @@ use crate::osc_object;
 
 use super::{Attr, Definition};
 
-/// [`diagnostic::Scope`] of errors for `#[osc_component]` macro.
+/// [`diagnostic::Scope`] of errors for `#[osc_module]` macro.
 const ERR: diagnostic::Scope = diagnostic::Scope::ComponentAttr;
 
-/// Expands `#[osc_component]` macro into generated code.
+/// Expands `#[osc_module]` macro into generated code.
 pub fn expand(attr_args: TokenStream, body: TokenStream) -> syn::Result<TokenStream> {
     if let Ok(mut ast) = syn::parse2::<syn::ItemImpl>(body) {
         if ast.trait_.is_none() {
@@ -27,11 +27,11 @@ pub fn expand(attr_args: TokenStream, body: TokenStream) -> syn::Result<TokenStr
 
     Err(syn::Error::new(
         Span::call_site(),
-        "#[osc_component] attribute is applicable to non-trait `impl` blocks only",
+        "#[osc_module] attribute is applicable to non-trait `impl` blocks only",
     ))
 }
 
-/// Expands `#[osc_component]` macro placed on an implmentation block.
+/// Expands `#[osc_module]` macro placed on an implmentation block.
 pub(crate) fn expand_on_impl(attr: Attr, mut ast: syn::ItemImpl) -> syn::Result<TokenStream> {
     let type_span = ast.self_ty.span();
     let type_ident = ast.self_ty.topmost_ident().ok_or_else(|| {
@@ -44,13 +44,13 @@ pub(crate) fn expand_on_impl(attr: Attr, mut ast: syn::ItemImpl) -> syn::Result<
         .clone()
         .unwrap_or_else(|| type_ident.unraw().to_string());
 
-    let objects: Vec<_> = ast
+        let reported_objects: Vec<_> = ast
         .items
         .iter_mut()
         .filter_map(|item| {
             if let syn::ImplItem::Method(method) = item {
-                if method.attrs.iter().any(|a| a.path.is_ident("osc_object")) {
-                    parse_object(method)
+                if method.attrs.iter().any(|a| a.path.is_ident("reported")) {
+                    parse_reported(method)
                 } else {
                     None
                 }
@@ -60,16 +60,21 @@ pub(crate) fn expand_on_impl(attr: Attr, mut ast: syn::ItemImpl) -> syn::Result<
         })
         .collect();
 
-    let reported_objects = objects
-        .clone()
-        .into_iter()
-        .filter(|o| o.kind == osc_object::Kind::Reported)
-        .collect();
-    let desired_objects = objects
-        .clone()
-        .into_iter()
-        .filter(|o| o.kind == osc_object::Kind::Desired)
-        .collect();
+        let desired_objects: Vec<_> = ast
+            .items
+            .iter_mut()
+            .filter_map(|item| {
+                if let syn::ImplItem::Method(method) = item {
+                    if method.attrs.iter().any(|a| a.path.is_ident("desired")) {
+                        parse_desired(method)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
 
     let generated_code = Definition {
         name,
@@ -88,19 +93,70 @@ pub(crate) fn expand_on_impl(attr: Attr, mut ast: syn::ItemImpl) -> syn::Result<
 /// Parses an object from an item in an impl block.
 ///
 /// Returns `None` if the item is not an object.
-fn parse_object(method: &mut syn::ImplItemMethod) -> Option<osc_object::Definition> {
+fn parse_reported(method: &mut syn::ImplItemMethod) -> Option<osc_object::Definition> {
     let method_attrs = method.attrs.clone();
 
     method.attrs = mem::take(&mut method.attrs)
         .into_iter()
-        .filter(|attr| !attr.path.is_ident("osc_object"))
+        .filter(|attr| !attr.path.is_ident("reported"))
         .collect();
 
-    let attr = osc_object::Attr::from_attrs("osc_object", &method_attrs)
+    // TODO: make named attributes optional
+    let attr = osc_object::Attr::from_attrs("reported", &method_attrs)
+    .map_err(|e| proc_macro_error::emit_error!(e))
+        .ok()?;
+
+    let method_ident = &method.sig.ident;
+
+    // TODO: if using method_ident for name, it should be checked and fixed according to a naming policy
+    let name = attr
+    .name
+    .clone()
+    .unwrap_or_else(|| method_ident.unraw().to_string());
+
+    let ty = match &method.sig.output {
+        syn::ReturnType::Default => {
+            // TODO: error
+            parse_quote! { () }
+        },
+        syn::ReturnType::Type(_, ty) => ty.unparenthesized().clone(),
+    };
+
+    Some(osc_object::Definition {
+        name,
+        ty,
+        ident: method_ident.clone(),
+    })
+}
+
+fn parse_desired(method: &mut syn::ImplItemMethod) -> Option<osc_object::Definition> {
+    let method_attrs = method.attrs.clone();
+
+    method.attrs = mem::take(&mut method.attrs)
+        .into_iter()
+        .filter(|attr| !attr.path.is_ident("desired"))
+        .collect();
+
+    // TODO: make named attributes optional
+    let attr = osc_object::Attr::from_attrs("desired", &method_attrs)
         .map_err(|e| proc_macro_error::emit_error!(e))
         .ok()?;
 
     let method_ident = &method.sig.ident;
+
+    // list arguements of the method
+    let mut args = Vec::new();
+    for arg in &method.sig.inputs {
+        if let syn::FnArg::Typed(arg) = arg {
+            args.push(arg.ty.clone());
+        }
+    }
+
+    // the only args should be &mut self and one other arg
+    if args.len() != 1 {
+        // TODO: error
+        return None;
+    }
 
     // TODO: if using method_ident for name, it should be checked and fixed according to a naming policy
     let name = attr
@@ -108,16 +164,9 @@ fn parse_object(method: &mut syn::ImplItemMethod) -> Option<osc_object::Definiti
         .clone()
         .unwrap_or_else(|| method_ident.unraw().to_string());
 
-    let kind = attr.kind;
-    let ty = match &method.sig.output {
-        syn::ReturnType::Default => parse_quote! { () },
-        syn::ReturnType::Type(_, ty) => ty.unparenthesized().clone(),
-    };
-
     Some(osc_object::Definition {
         name,
-        kind,
-        ty,
+        ty: *args[0].clone(),
         ident: method_ident.clone(),
     })
 }

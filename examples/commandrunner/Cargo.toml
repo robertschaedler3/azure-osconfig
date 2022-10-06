@@ -1,0 +1,13 @@
+[package]
+name = "commandrunner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+osc = { path = "../../osc"}
+serde = { version = "1.0", features = ["derive"] }
+wait-timeout = "0.2.0"
+
+# NOTE: these are temporary while testing this example
+libc = "0.2"
+serde_json = "1.0"

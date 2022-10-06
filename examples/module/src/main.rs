@@ -1,184 +1,158 @@
 use osc::osc_module;
-use serde::{Deserialize, Serialize};
 
 // REVIEW: try to do this without Default
-// #[derive(Debug, Default)]
-// struct Hostname;
-
-// TODO: #[osc_component(module = "MyModule")]
-// #[osc_component]
-// impl Hostname {
-//     #[osc_object(reported)]
-//     fn name(&self) -> String {
-//         hostname::get().unwrap().to_string_lossy().to_string()
-//     }
-
-//     #[osc_object(reported, name = "hosts")]
-//     fn hosts(&self) -> Vec<String> {
-//         let command = std::process::Command::new("hostname")
-//             .arg("-I")
-//             .output()
-//             .unwrap();
-//         let output = String::from_utf8_lossy(&command.stdout);
-//         output.split_whitespace().map(|s| s.to_string()).collect()
-//     }
-
-//     #[osc_object(desired, name = "name")]
-//     fn desired_name(&mut self, name: &str) {
-//         // hostname::set(name).unwrap();
-//         println!("setting hostname: {}", name);
-//     }
-// }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-struct Complex {
-    string: String,
-    num: u32,
-    boolean: bool,
-    array: Vec<String>,
-    str_enum: StrEnum,
-    num_enum: NumEnum,
+#[derive(Default)]
+struct Hostname {
+    name: String,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum StrEnum {
-    #[default]
-    EnumValue,
-}
+#[osc_module]
+impl Hostname {
+    #[reported(name = "name")]
+    fn name(&self) -> String {
+        self.name.clone()
+    }
 
-#[derive(Debug, Default, Copy, Clone)]
-enum NumEnum {
-    #[default]
-    EnumValue = 1,
-}
-
-impl Serialize for NumEnum {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_u32(*self as u32)
+    #[desired(name = "name")]
+    fn desired_name(&mut self, name: String) {
+        self.name = name;
     }
 }
 
-impl<'de> Deserialize<'de> for NumEnum {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let num = u32::deserialize(deserializer)?;
-        match num {
-            1 => Ok(NumEnum::EnumValue),
-            _ => Err(serde::de::Error::custom("invalid enum value")),
+// --------------------------------------------------------------------------------
+
+// IDEAS:
+
+#[osc_module(Component1, Component2)]
+struct MyModule;
+
+struct Component1 {
+    foo: String,
+}
+
+#[osc_component]
+impl Component1 {
+    #[reported]
+    fn foo(&self) -> String {
+        self.foo.clone()
+    }
+
+    #[desired(name = "foo")]
+    fn desired_foo(&mut self, foo: String) {
+        self.foo = foo;
+    }
+}
+
+#[osc_component]
+impl Component2 {
+    #[desired]
+    fn bar(&self, blah: String) -> Result<(), Error> {
+        println!("bar: {}", blah);
+    }
+
+    #[reported]
+    fn baz(&self) -> Baz {
+        Baz {
+            something: "blah".to_string(),
         }
     }
 }
 
-#[derive(Default)]
-struct Something {
-    complex: Complex,
+#[osc_object]
+struct Baz {
+    something: String,
 }
 
-#[osc_module]
-impl Something {
-    #[osc_object(reported)]
-    fn something(&self) -> &str {
-        "something"
+// ABOVE CODE SHOULD EXPAND TO:
+
+struct MyModule {
+    component1: Component1,
+    component2: Component2,
+}
+
+impl MyModule {
+    fn new() -> Self {
+        Self {
+            component1: Component1::new(),
+            component2: Component2::new(),
+        }
     }
 
-    #[osc_object(reported)]
-    fn complex(&self) -> Complex {
-        self.complex.clone()
+    fn get(&self, component: &str, object: &str) -> Result<String, Error> {
+        match component {
+            "component1" => self.component1.get(object),
+            "component2" => self.component2.get(object),
+            _ => Err(Error::InvalidComponent(component.to_string())),
+        }
     }
 
-    #[osc_object(desired, name = "complex")]
-    fn desired_complex(&mut self, complex: Complex) {
-        self.complex = complex;
+    fn set(&mut self, component: &str, object: &str, value: Value) -> Result<(), Error> {
+        match component {
+            "component1" => self.component1.set(object, value),
+            "component2" => self.component2.set(object, value),
+            _ => Err(Error::InvalidComponent(component.to_string())),
+        }
     }
 }
+
+impl Component1 {
+    fn new() -> Self {
+        Self {
+            foo: "foo".to_string(),
+        }
+    }
+
+    fn get(&self, object: &str) -> Result<String, Error> {
+        match object {
+            "foo" => Ok(self.foo.clone()),
+            _ => Err(Error::InvalidObject(object.to_string())),
+        }
+    }
+
+    fn set(&mut self, object: &str, value: Value) -> Result<(), Error> {
+        match object {
+            "foo" => {
+                self.foo = value.as_str().unwrap().to_string();
+                Ok(())
+            }
+            _ => Err(Error::InvalidObject(object.to_string())),
+        }
+    }
+}
+
+impl Component2 {
+    fn new() -> Self {
+        Self {}
+    }
+
+    fn get(&self, object: &str) -> Result<String, Error> {
+        match object {
+            "baz" => Ok(serde_json::to_string(&self.baz())?),
+            _ => Err(Error::InvalidObject(object.to_string())),
+        }
+    }
+
+    fn set(&mut self, object: &str, value: Value) -> Result<(), Error> {
+        match object {
+            "bar" => {
+                self.bar(value.as_str().unwrap().to_string());
+                Ok(())
+            }
+            _ => Err(Error::InvalidObject(object.to_string())),
+        }
+    }
+}
+
+
 
 // --------------------------------------------------------------------------------
 
-use libc::{c_char, c_int, c_uint, EINVAL};
-
-use osc::module::interface::{close, get, open, set, Handle, JsonString};
-
-type Blah = MyModule;
-
-// TODO: the "Mmi" interface should be generated by the osc_codegen crate
-
-#[no_mangle]
-pub extern "C" fn MmiOpen(client_name: *const c_char, max_payload_size: c_uint) -> Handle {
-    if let Ok(module) = open::<Blah>(client_name, max_payload_size) {
-        Box::into_raw(Box::new(module)) as Handle
-    } else {
-        // TODO: log error
-        println!("MmiOpen failed");
-        ptr::null_mut()
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn MmiClose(client_session: Handle) {
-    close::<Blah>(client_session);
-}
-
-#[no_mangle]
-pub extern "C" fn MmiSet(
-    client_session: Handle,
-    component_name: *const c_char,
-    object_name: *const c_char,
-    payload: JsonString,
-    payload_size_bytes: c_int,
-) -> c_int {
-    if let Err(err) = set::<Blah>(
-        client_session,
-        component_name,
-        object_name,
-        payload,
-        payload_size_bytes,
-    ) {
-        // TODO: log error
-        println!("error: {}", err);
-
-        // TODO: convert error to appropriate error code
-        EINVAL
-    } else {
-        0
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn MmiGet(
-    client_session: Handle,
-    component_name: *const c_char,
-    object_name: *const c_char,
-    payload: *mut JsonString,
-    payload_size_bytes: *mut c_int,
-) -> c_int {
-    if let Err(err) = get::<Blah>(
-        client_session,
-        component_name,
-        object_name,
-        payload,
-        payload_size_bytes,
-    ) {
-        // TODO: log error
-        println!("error: {}", err);
-
-        // TODO: convert error to appropriate error code
-        EINVAL
-    } else {
-        0
-    }
-}
-
-// --------------------------------------------------------------------------------
-
+use libc::{c_char, c_int};
 use serde_json::Value;
 use std::ffi::{CStr, CString};
 use std::{env, ptr};
+
+use osc::module::interface::{Handle, JsonString};
 
 fn get_args() -> Option<(String, String)> {
     let args: Vec<String> = env::args().collect();
@@ -252,16 +226,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let blah = CString::new("blah").unwrap();
     let handle = MmiOpen(blah.as_ptr() as *const c_char, 1024);
 
-    let complex = Complex {
-        string: "hello".to_string(),
-        num: 42,
-        boolean: true,
-        array: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-        num_enum: NumEnum::EnumValue,
-        str_enum: StrEnum::EnumValue,
-    };
+    let value = "my_computer";
 
-    call_set(handle, &component, &object, complex);
+    call_set(handle, &component, &object, value);
     call_get(handle, &component, &object);
 
     MmiClose(handle);

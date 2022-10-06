@@ -5,7 +5,7 @@ use std::{slice};
 pub type Handle = *mut c_void;
 pub type JsonString = *mut c_char;
 
-use super::Module;
+use super::{Interface};
 use crate::error::Error;
 
 // TODO: "MmiGetInfo()" function
@@ -15,18 +15,18 @@ pub fn open<ModuleT>(
     max_payload_size: c_uint,
 ) -> Result<ModuleT, Error>
 where
-    ModuleT: Module,
+    ModuleT: Interface,
 {
     // REVIEW: does client_name need to be checked for null?
     let client_name = unsafe { CStr::from_ptr(client_name) };
     let client_name = client_name.to_str()?;
-    let module = ModuleT::new(client_name, max_payload_size);
+    let module = ModuleT::open(client_name, max_payload_size);
     Ok(module)
 }
 
 pub fn close<ModuleT>(client_session: Handle)
 where
-    ModuleT: Module,
+    ModuleT: Interface,
 {
     if !client_session.is_null() {
         unsafe { Box::from_raw(client_session as *mut ModuleT) };
@@ -41,7 +41,7 @@ pub fn set<ModuleT>(
     payload_size_bytes: c_int,
 ) -> Result<(), Error>
 where
-    ModuleT: Module,
+    ModuleT: Interface,
 {
     if client_session.is_null() {
         return Err(Box::new(std::io::Error::from_raw_os_error(EINVAL)));
@@ -56,8 +56,7 @@ where
     let payload = String::from_utf8_lossy(payload).to_string();
 
     let module = unsafe { &mut *(client_session as *mut ModuleT) };
-    module.set(component_name, object_name, &payload);
-    Ok(())
+    module.set(component_name, object_name, &payload)
 }
 
 pub fn get<ModuleT>(
@@ -68,7 +67,7 @@ pub fn get<ModuleT>(
     payload_size_bytes: *mut c_int,
 ) -> Result<(), Error>
 where
-    ModuleT: Module,
+    ModuleT: Interface,
 {
     if client_session.is_null() {
         return Err(Box::new(std::io::Error::from_raw_os_error(EINVAL)));
