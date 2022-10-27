@@ -1,19 +1,16 @@
 use libc::{c_char, c_int, c_uint, c_void, EINVAL};
 use std::ffi::{CStr, CString};
-use std::{slice};
+use std::slice;
 
 pub type Handle = *mut c_void;
 pub type JsonString = *mut c_char;
 
-use super::{Interface};
+use super::Interface;
 use crate::error::Error;
 
 // TODO: "MmiGetInfo()" function
 
-pub fn open<ModuleT>(
-    client_name: *const c_char,
-    max_payload_size: c_uint,
-) -> Result<ModuleT, Error>
+pub fn open<ModuleT>(client_name: *const c_char, max_payload_size: c_uint) -> Result<ModuleT, Error>
 where
     ModuleT: Interface,
 {

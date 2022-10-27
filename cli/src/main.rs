@@ -1,5 +1,10 @@
 use clap::{Parser, Subcommand};
+
 mod command;
+
+// TODO: there has to be a better place to put these
+pub type Error = anyhow::Error;
+pub type Result<T> = anyhow::Result<T>;
 
 #[derive(Debug, Parser)]
 #[clap(name = "osc")]
@@ -16,23 +21,16 @@ pub struct Cli {
 enum Command {
     // #[clap(arg_required_else_help = true)]
     // Platform(command::Platform),
-
     #[clap(arg_required_else_help = true)]
-    Generate(command::generate::Arguments),
+    Test(command::test::Arguments),
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
-    let _ = match args.command {
-        // Command::Platform(command) => {
-        //     command::platform::execute(command)
-        // }
-        Command::Generate(arguments) => {
-            command::generate::execute(arguments)
-        }
-    };
-
-    // TODO: handle results from the commands
+    match args.command {
+        // Command::Platform(command) => command::platform::execute(command),
+        Command::Test(arguments) => command::test::execute(arguments),
+    }
 }

@@ -1,6 +1,6 @@
 use clap::Args;
 
-pub mod generate;
+pub mod test;
 // pub mod platform;
 
 // #[derive(Debug, Args)]
@@ -16,8 +16,8 @@ pub mod generate;
 
 #[derive(Debug, Args)]
 #[clap(args_conflicts_with_subcommands = true)]
-pub struct Generate {
+pub struct Test {
     #[clap(subcommand)]
-    command: generate::Command,
+    command: test::Command,
 }
 
