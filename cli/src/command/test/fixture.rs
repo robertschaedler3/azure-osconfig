@@ -1,221 +1,52 @@
-use anyhow::anyhow;
-use colored::Colorize;
-use format_serde_error::SerdeError;
-use serde::Deserialize;
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
-    hash::Hash,
-    io::Write,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use crate::Result;
-use osc::module::{self, schema, Library, Session};
+use anyhow::{anyhow, Result};
+use colored::Colorize;
 
-use super::log;
+use osc::module::{self, Library, Session};
 
-#[derive(Debug, Deserialize)]
-struct Definition {
-    #[serde(default)]
-    client: Client,
-    modules: Vec<String>,
-    setup: Option<Script>,
-    teardown: Option<Script>,
-    scenarios: Vec<Scenario>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct Script(String);
-
-#[derive(Debug, Deserialize)]
-struct Scenario {
-    name: String,
-
-    steps: Vec<Step>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Client {
-    #[serde(rename = "client")]
-    name: String,
-    max_payload_size: u32,
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self {
-            name: "osc".to_string(),
-            max_payload_size: 0,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct Step {
-    name: String,
-    component: String,
-    object: String,
-
-    #[serde(flatten)]
-    action: Action,
-
-    #[serde(default)]
-    expect: Expect,
-
-    #[serde(flatten)]
-    #[serde(default)]
-    options: Options,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "action")]
-#[serde(rename_all = "lowercase")]
-enum Action {
-    Get,
-    Set {
-        #[serde(flatten)]
-        value: Value,
-
-        size: Option<i32>,
-    },
-}
-
-#[derive(Debug, Deserialize)]
-struct Expect {
-    #[serde(flatten)]
-    value: Option<Value>,
-
-    size: Option<i32>,
-
-    status: Status,
-}
-
-impl Default for Expect {
-    fn default() -> Self {
-        Self {
-            value: None,
-            size: None,
-            status: Status::Success,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-#[serde(rename_all = "lowercase")]
-enum Status {
-    // FIXME: success/failure not working
-    Success,
-    Failure,
-    Exit(i32),
-}
-
-impl Status {
-    fn check(&self, other: i32) -> Result<()> {
-        let valid = match self {
-            Status::Success => other == 0,
-            Status::Failure => other != 0,
-            Status::Exit(code) => other == *code,
-        };
-
-        if !valid {
-            Err(anyhow!("expected status {:?}, got {}", self, other))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-enum Value {
-    #[serde(rename = "payload")]
-    Payload(schema::Value),
-
-    #[serde(rename = "json")]
-    // TODO: validate this JSON string (https://github.com/serde-rs/serde/issues/939#issuecomment-939514114)
-    Json(Json),
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(try_from = "String")] // Tell serde to deserialize data into a String and then try to convert it into Email
-pub struct Json(schema::Value);
-
-impl TryFrom<String> for Json {
-    type Error = String;
-
-    fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
-        let value = serde_json::from_str(&value)
-            .map_err(|err| SerdeError::new(value.to_string(), err))
-            .unwrap();
-        Ok(Self(value))
-    }
-}
-
-impl Value {
-    fn check(&self, other: &str) -> Result<()> {
-        match self {
-            Value::Payload(value) => {
-                let other = serde_json::from_str::<schema::Value>(other)
-                    .map_err(|err| SerdeError::new(other.to_string(), err))?;
-                if value != &other {
-                    return Err(anyhow!("expected {:?}, got {:?}", value, other));
-                }
-            }
-            Value::Json(json) => {
-                let other = serde_json::from_str::<schema::Value>(other)
-                    .map_err(|err| SerdeError::new(other.to_string(), err))?;
-                let value = &json.0;
-                if value != &other {
-                    return Err(anyhow!("expected {:?}, got {:?}", value, other));
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Default, Debug, Deserialize)]
-struct Options {
-    /// Delay in milliseconds before executing the step.
-    delay: Option<u64>,
-
-    /// Skip this test step.
-    skip: Option<bool>,
-}
+use super::{
+    definition::{Action, Assertion, Config, Definition, Step},
+    log,
+};
 
 pub struct Fixture {
-    client: Client,
+    config: Config,
     modules: Vec<String>,
-    suites: Vec<Suite>,
-}
-
-struct Suite {
-    name: String,
     tests: Vec<Test>,
 }
 
-struct Test {
-    name: String,
+pub struct Test {
+    delay: Duration,
+    skip: bool,
 
     /// A closure that runs the test. This function is passed the client session when it is invoked.
     ///
     /// _This function may not be invoked if a session cannot be opened or found for the corresponding module/component._
-    body: Box<
-        dyn Fn(
-            &Context,
-            String,
-            &HashMap<Module, Arc<Library>>,
-            &HashMap<Component, Module>,
-            &HashMap<Module, Session>,
-        ) -> Result<TestResult>,
-    >,
+    body: Body,
+    // result: Option<Outcome>,
+}
+
+pub struct Body(Box<dyn Fn(&Context) -> Result<()>>);
+
+// "Helper" type to improve readability
+type Module = String;
+type Component = String;
+
+pub struct Context {
+    modules: HashMap<Module, Arc<Library>>,
+    components: HashMap<Component, Module>,
+    sessions: HashMap<Module, Session>,
 }
 
 #[derive(Debug)]
-enum TestResult {
+enum Outcome {
     Success {
         duration: Duration,
     },
@@ -228,32 +59,11 @@ enum TestResult {
 
 #[derive(Debug, Clone)]
 struct Failure {
-    name: String,
     error: String,
     log: String,
 }
 
-// TODO: use this stuct for binding values between steps, variables, etc
-struct Context {
-    client: Client,
-}
-
-type Module = String;
-type Component = String;
-
 impl Fixture {
-    pub fn from_file(path: &PathBuf) -> Result<(Option<Script>, Option<Script>, Self)> {
-        let s = std::fs::read_to_string(path)?;
-        let definition: Definition =
-            serde_yaml::from_str(s.as_str()).map_err(|err| SerdeError::new(s.to_string(), err))?;
-
-        // TODO: load the modules (and register components) here and store them in the fixture
-
-        // TODO: ensure unique names for suites and tests
-
-        Ok(definition.into())
-    }
-
     pub fn run(&self, bin: PathBuf) -> Result<()> {
         let mut log = String::new();
 
@@ -290,6 +100,11 @@ impl Fixture {
         //     <n> total <n>ms
         //
 
+        let Config {
+            client_name,
+            max_payload_size,
+        } = self.config.clone();
+
         let modules = self
             .modules
             .clone()
@@ -301,12 +116,15 @@ impl Fixture {
             })
             .collect::<Result<HashMap<_, _>>>()?;
 
+        println!("");
+        println!("modules:");
+
         // REVIEW: what happens if a component name is duplicated across modules?
         let components = modules
             .iter()
             .map(|(module, lib)| {
-                // TODO: a module may fail during get_info(), so errors should be handled here
-                let info = log::capture(&mut log, || lib.info(&self.client.name))?;
+                let info = log::capture(&mut log, || lib.info(&client_name))?;
+                println!("  - {} ({})", info.name, info.version);
                 Ok(info
                     .components
                     .into_iter()
@@ -317,320 +135,174 @@ impl Fixture {
             .flatten()
             .collect::<HashMap<_, _>>();
 
-        println!("");
-        println!("modules:");
-        for (module, _) in &modules {
-            // println!("  - {} ({})", module, lib.info(&self.client.name)?.version);
-            println!("  - {} (1.0.0)", module);
-        }
-
-        println!("");
-        // println!("running {} tests from {} suites", self.tests(), self.suites());
-
-        // TODO: print "loading" logs if verbose logging is enabled (indented and colorized)
-
-        let mut ctx = Context {
-            client: self.client.clone(),
-        };
-
-        // TODO: print "running x tests"
-
-        // REVIEW: it might be cleaner to implment an iterator for suites and tests ?
-        // let failures = self
-        //     .suites
-        //     .iter()
-        //     .map(|suite|
-
-        let total = self
-            .suites
-            .iter()
-            .map(|suite| suite.tests.len())
-            .sum::<usize>();
-        let mut failures = HashMap::new();
-        let time = Instant::now();
-
-        println!("running {} tests:", total);
-        println!("");
-
-        for suite in &self.suites {
-            let result = suite.run(&mut ctx, &modules, &components)?;
-            failures.insert(suite.name.clone(), result);
-        }
-
-        let failed = failures.values().map(|failures| failures.len()).sum::<usize>();
-
-        // TODO: use miette errors for this
-        // println!("\nfailures:");
-        for (_, failures) in failures {
-            for failure in failures {
-                println!("------- {} -------", failure.name);
-                if failure.log.len() > 0 {
-                    println!("{}", failure.log);
-                }
-                println!("\t{}\n", failure.error);
-            }
-        }
-
-        println!("\nsummary:");
-        println!("    {} passed", total - failed);
-        println!("    {} failed", failed);
-        // TODO: print skipped tests
-        println!("    {} total {}ms\n", total, time.elapsed().as_millis());
-
-        Ok(())
-    }
-}
-
-impl Suite {
-    fn run(
-        &self,
-        ctx: &mut Context,
-        modules: &HashMap<Module, Arc<Library>>,
-        components: &HashMap<Component, Module>,
-    ) -> Result<Vec<Failure>> {
         let sessions = modules
             .iter()
             .map(|(module, lib)| {
-                let session = lib.open(&ctx.client.name, ctx.client.max_payload_size)?;
+                let session = log::capture(&mut log, || lib.open(&client_name, max_payload_size))?;
                 Ok((module.clone(), session))
             })
             .collect::<Result<HashMap<_, _>>>()?;
 
-        let mut failures = Vec::new();
+        // TODO: print "loading" logs if verbose logging is enabled (indented and colorized)
 
-        for test in &self.tests {
-            let result = test.invoke(&ctx, modules, components, &sessions)?;
-            if let TestResult::Failure { failure, .. } = &result {
-                failures.push(failure.clone());
+        let ctx = Context {
+            modules,
+            components,
+            sessions,
+        };
+
+        let total = self.tests.len();
+        let mut skipped = 0;
+        let mut failures = HashMap::new();
+
+        println!("");
+        println!("running {} tests:", total);
+        println!("");
+
+        for (i, test) in self.tests.iter().enumerate() {
+            let outcome = test.run(&ctx);
+            println!("  test {} ... {}", i, outcome);
+
+            if let Outcome::Skipped = &outcome {
+                skipped += 1;
+            }
+
+            if let Outcome::Failure { failure, .. } = outcome {
+                failures.insert(i, failure);
             }
         }
 
-        // TODO: close all sessions (capture logs)
+        println!("");
 
-        // TODO: return suite report and failures
-        Ok(failures)
-    }
-}
-
-impl Test {
-    pub fn invoke(
-        &self,
-        ctx: &Context,
-        modules: &HashMap<Component, Arc<Library>>,
-        components: &HashMap<Component, Module>,
-        sessions: &HashMap<Module, Session>,
-    ) -> Result<TestResult> {
-        print!("  {:<30}", self.id());
-
-        let result = (self.body)(ctx, self.id(), modules, components, sessions);
-
-        match &result {
-            Ok(test_result) => println!(" {}", test_result),
-            Err(err) => println!("{}", err),
+        for (i, failure) in &failures {
+            println!("------- test {} -------", i);
+            println!("{}", failure.log);
+            println!("{}", failure.error);
+            println!("");
         }
 
-        result
-    }
+        let failed = failures.len();
+        let passed = total - failed - skipped;
 
-    /// Convert self.name to all lowercase, remove all non-alphanumeric characters, and replace spaces with dashes.
-    fn id(&self) -> String {
-        self.name
-            .to_lowercase()
-            .chars()
-            .filter(|c| c.is_alphanumeric() || c.is_whitespace())
-            .map(|c| if c.is_whitespace() { '-' } else { c })
-            .collect()
-    }
-}
-
-impl Script {
-    pub fn execute(&self) -> Result<()> {
-        let script = &self.0;
-
-        // Write the script to a temporary file
-        let mut file = tempfile::NamedTempFile::new()?;
-        file.write_all(script.as_bytes())?;
-
-        let output = std::process::Command::new("bash")
-            .arg(file.path())
-            .output()?;
-
-        if !output.status.success() {
-            // TODO: return a better error that will bring nicely
-            return Err(anyhow!(
-                "script failed ({}): {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        } else {
-            // TODO: only print as a log trace
-            // println!("{}", String::from_utf8_lossy(&output.stdout));
-        }
+        println!("");
+        println!(
+            "summary: {}",
+            if failed > 0 {
+                "FAILED".red()
+            } else {
+                "PASSED".green()
+            }
+        );
+        println!("    {} passed", passed);
+        println!("    {} failed", failed);
+        println!("    {} skipped", skipped);
+        println!("    {} total", total);
 
         Ok(())
     }
 }
 
-impl From<Definition> for (Option<Script>, Option<Script>, Fixture) {
-    fn from(definition: Definition) -> Self {
-        let Definition {
-            client,
-            modules,
-            setup,
-            teardown,
-            scenarios,
-        } = definition;
+impl Test {
+    fn run(&self, ctx: &Context) -> Outcome {
+        let time = Instant::now();
 
-        let suites = scenarios
-            .into_iter()
-            .map(|scenario| scenario.into())
-            .collect();
+        if self.skip {
+            return Outcome::skipped();
+        }
 
-        let fixture = Fixture {
-            client,
-            modules,
-            suites,
-        };
+        if self.delay > Duration::from_secs(0) {
+            std::thread::sleep(self.delay);
+        }
 
-        (setup, teardown, fixture)
-    }
-}
+        let (log, result) = (self.body).invoke(ctx);
+        let duration = time.elapsed();
 
-impl From<Scenario> for Suite {
-    fn from(scenario: Scenario) -> Self {
-        let Scenario { name, steps } = scenario;
-
-        Self {
-            name,
-            tests: steps.into_iter().map(|step| step.into()).collect(),
+        match result {
+            Ok(()) => Outcome::passed(duration),
+            Err(err) => Outcome::failed(duration, err.to_string(), Some(log)),
         }
     }
 }
 
-impl From<Step> for Test {
-    fn from(step: Step) -> Self {
-        let Step {
-            name,
-            component,
-            object,
-            action,
-            expect,
-            options,
-        } = step;
+impl Context {
+    fn module(&self, component: &str) -> Result<(Arc<Library>, Session)> {
+        let module = self
+            .components
+            .get(component)
+            .ok_or_else(|| anyhow!("Component not found: {}", component))?;
+        let session = self
+            .sessions
+            .get(module)
+            .ok_or_else(|| anyhow!("Session not found: {}", module))?;
+        let lib = self
+            .modules
+            .get(module)
+            .ok_or_else(|| anyhow!("Module not found: {}", module))?;
 
-        let body = Box::new(
-            move |_ctx: &Context,
-                  name: String,
-                  modules: &HashMap<Component, Arc<Library>>,
-                  components: &HashMap<Component, Module>,
-                  sessions: &HashMap<Module, Session>| {
-                if let Some(true) = options.skip {
-                    return Ok(TestResult::skipped());
+        Ok((lib.clone(), session.clone()))
+    }
+
+    // TODO: function for capturing logs and storing them in the context for later printing
+}
+
+impl Body {
+    pub fn new(action: Action, assertion: Assertion) -> Self {
+        let body = Box::new(move |ctx: &Context| {
+            match action {
+                Action::Get {
+                    ref component,
+                    ref object,
+                } => {
+                    let (lib, session) = ctx.module(&component)?;
+
+                    let (status, payload) = lib.get(&session, &component, &object)?;
+
+                    // TODO: run the assertions here
                 }
+                Action::Set {
+                    ref component,
+                    ref object,
+                    ref value,
+                    size,
+                } => {
+                    let (lib, session) = ctx.module(&component)?;
 
-                let time = Instant::now();
-                let component = component.as_str();
-                let object = object.as_str();
-                let mut log = String::new();
+                    let (payload, payload_size) = value.into();
+                    let payload_size = size.unwrap_or(payload_size);
 
-                if let Some(delay) = options.delay {
-                    std::thread::sleep(std::time::Duration::from_millis(delay));
+                    let status = lib.set(
+                        &session,
+                        &component,
+                        &object,
+                        &payload,
+                        payload_size as usize,
+                    )?;
+
+                    // TODO: run the assertions here
                 }
+            };
 
-                let lookup: Result<_> = {
-                    let module = components
-                        .get(component)
-                        .ok_or_else(|| anyhow!("Component not found: {}", component))?;
-                    let session = sessions
-                        .get(module)
-                        .ok_or_else(|| anyhow!("Session not found: {}", module))?;
-                    let lib = modules
-                        .get(module)
-                        .ok_or_else(|| anyhow!("Module not found: {}", module))?;
+            // if let Err(err) = result {
+            //     return Outcome::failed(duration, err, Some(log));
+            // }
 
-                    Ok((lib, session))
-                };
+            Ok(())
+        });
 
-                if let Err(err) = lookup {
-                    return Ok(TestResult::failure(
-                        time.elapsed(),
-                        name,
-                        err.to_string(),
-                        None,
-                    ));
-                }
+        Self(body)
+    }
 
-                let (lib, session) = lookup.unwrap();
-
-                let result = match action {
-                    Action::Get => {
-                        let (status, payload) =
-                            log::capture(&mut log, || lib.get(session, component, object))?;
-
-                        // TODO: make these real "expect" assertions (ie allow multiple assertions for a single test)
-                        expect.status.check(status).and_then(|()| {
-                            // TODO: check size (is specified)
-                            if let Some(ref value) = expect.value {
-                                value.check(&payload)
-                            } else {
-                                Ok(())
-                            }
-                        })
-                    }
-                    Action::Set { ref value, size } => {
-                        let (payload, payload_size) = value.into();
-
-                        let status = log::capture(&mut log, || {
-                            lib.set(
-                                session,
-                                component,
-                                object,
-                                &payload,
-                                size.unwrap_or(payload_size),
-                            )
-                        })?;
-
-                        expect.status.check(status)
-                    }
-                };
-
-                let duration = time.elapsed();
-
-                match result {
-                    Ok(_) => Ok(TestResult::success(duration)),
-                    Err(err) => Ok(TestResult::failure(
-                        duration,
-                        name,
-                        err.to_string(),
-                        Some(log),
-                    )),
-                }
-            },
-        );
-
-        Self { name, body }
+    /// Invoke the test body.
+    /// TODO: fix the return type here (this is messy)
+    fn invoke(&self, ctx: &Context) -> (String, Result<()>) {
+        let mut buffer = String::new();
+        let result = log::capture(&mut buffer, || (self.0)(ctx));
+        (buffer, result)
     }
 }
 
-impl From<&Value> for (String, i32) {
-    fn from(value: &Value) -> Self {
-        match value {
-            Value::Payload(payload) => {
-                let payload = serde_json::to_string(&payload).unwrap();
-                let size = payload.len();
-                (payload, size as i32)
-            }
-            Value::Json(json) => {
-                let payload = serde_json::to_string(&json.0).unwrap();
-                let size = payload.len();
-                (payload, size as i32)
-            }
-        }
-    }
-}
-
-impl TestResult {
-    pub fn success(duration: Duration) -> Self {
+impl Outcome {
+    pub fn passed(duration: Duration) -> Self {
         Self::Success { duration }
     }
 
@@ -638,11 +310,10 @@ impl TestResult {
         Self::Skipped
     }
 
-    pub fn failure(duration: Duration, name: String, error: String, log: Option<String>) -> Self {
+    pub fn failed(duration: Duration, error: String, log: Option<String>) -> Self {
         Self::Failure {
             duration,
             failure: Failure {
-                name,
                 error,
                 log: log.unwrap_or_default(),
             },
@@ -650,19 +321,62 @@ impl TestResult {
     }
 }
 
-impl Display for TestResult {
+impl From<&Definition> for Fixture {
+    fn from(definition: &Definition) -> Self {
+        let Definition {
+            config,
+            modules,
+            steps,
+            ..
+        } = definition;
+
+        let config = config.clone();
+        let modules = modules.clone();
+        let tests = steps.iter().map(|step| step.into()).collect();
+
+        Self {
+            config,
+            modules,
+            tests,
+        }
+    }
+}
+
+impl From<&Step> for Test {
+    fn from(step: &Step) -> Self {
+        let Step {
+            action,
+            assert,
+            options,
+        } = step;
+
+        let body = Body::new(action.clone(), assert.clone());
+        let delay = options.delay.unwrap_or(0);
+        let delay = std::time::Duration::from_millis(delay);
+        let skip = options.skip.unwrap_or(false);
+
+        Self {
+            body,
+            delay,
+            skip,
+            // result: None,
+        }
+    }
+}
+
+impl Display for Outcome {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self {
-            TestResult::Success { duration } => {
+            Outcome::Success { duration } => {
                 write!(
                     f,
-                    "{}   {}ms",
+                    "{}    {}ms",
                     "passed".bright_green(),
                     duration.as_millis()
                 )
             }
-            TestResult::Skipped => write!(f, "{}", "skipped".bright_yellow()),
-            TestResult::Failure { duration, .. } => {
+            Outcome::Skipped => write!(f, "{}", "skipped".bright_yellow()),
+            Outcome::Failure { duration, .. } => {
                 write!(
                     f,
                     "{}   {}ms",

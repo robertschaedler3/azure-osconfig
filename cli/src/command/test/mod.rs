@@ -2,11 +2,15 @@ use std::{path::PathBuf};
 
 use anyhow::anyhow;
 use clap::{Args, Subcommand};
-use colored::Colorize;
+// use colored::Colorize;
 
 use crate::Result;
-use fixture::Fixture;
 
+// TODO: fix this namespacing
+// use fixture::Fixture;
+use definition::Definition;
+
+mod definition;
 mod fixture;
 mod log;
 
@@ -19,6 +23,7 @@ pub struct Arguments {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Module {
+        // TODO: default to current working directory
         #[clap(value_parser = valid_path)]
         path: PathBuf,
 
@@ -26,7 +31,9 @@ pub enum Command {
         #[clap(value_parser = valid_path)]
         bin: PathBuf,
 
-        // TODO: filter/run specific tests
+        // TODO:
+        // - filter/run specific tests
+        // - run tests using the platform vs directly loading modules
     },
 }
 
@@ -37,33 +44,32 @@ pub fn execute(args: Arguments) -> Result<()> {
 }
 
 fn test_module(path: PathBuf, bin: PathBuf) -> Result<()> {
-    let definition = path.join("test.yml");
+    let yml = path.join("test.yml");
+
+    if !yml.exists() {
+        return Err(anyhow!("Test definition file not found: {}", yml.display()));
+    }
 
     // TODO: use model in payload validation for get/set
     // let interface = path.join("interface.json");
     // let model = interface::Model::from_file(interface)?;
 
-    let (setup, teardown, fixture) = Fixture::from_file(&definition)?;
-
-    println!("");
-    println!("test definition: {}", definition.to_string_lossy());
+    let definition = Definition::from_file(&yml)?;
+    let (setup, teardown, fixture) = definition.into_parts();
 
     // TODO: print more details about the test run (tests, modules, etc.)
 
     if let Some(script) = setup {
         // TODO: need a way to set all the tests to skipped if setup fails
         script.execute()?;
-        // println!("setup {}", "complete".bright_green());
     }
 
-    // REVIEW: what is the best way to handle a failure here (teardown should always run) ?
-    if let Err(err) = fixture.run(bin) {
-        println!("{}", err);
-    }
+    // REVIEW: if a test fails catastrophically, teardown should still run after
+    fixture.run(bin)?;
 
     if let Some(script) = teardown {
+        // REVIEW: should anything special happen if the teardown fails?
         script.execute()?;
-        // println!("teardown {}", "complete".bright_green());
     }
 
     Ok(())
