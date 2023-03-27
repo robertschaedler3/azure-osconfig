@@ -55,7 +55,7 @@ impl Platform {
             .find(|module| module.components.contains(&component.to_string()));
         if let Some(module) = module {
             if let Some(session) = module.session.clone() {
-                let (status, payload) = module.library.get(session, component, object)?;
+                let (status, payload) = module.library.get(&session, component, object)?;
                 if status == 0 {
                     Ok(payload)
                 } else {
@@ -84,7 +84,7 @@ impl Platform {
                 let status =
                     module
                         .library
-                        .set(session, component, object, value, value.len() as i32)?;
+                        .set(&session, component, object, value, value.len())?;
                 if status == 0 {
                     Ok(())
                 } else {

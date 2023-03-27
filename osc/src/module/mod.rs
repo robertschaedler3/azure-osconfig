@@ -65,6 +65,7 @@ pub struct Info {
 }
 
 /// A struct representation of a module's shared library.
+#[derive(Clone)]
 pub struct Library {
     // lib: LibArc,
     get_info: FuncArc<MmiGetInfo>,
@@ -74,7 +75,11 @@ pub struct Library {
     get: FuncArc<MmiGet>,
 }
 
+#[derive(Clone)]
 pub struct Session(MmiHandle);
+
+// https://stackoverflow.com/questions/60292897/why-cant-i-send-mutexmut-c-void-between-threads
+unsafe impl Send for Session {}
 
 impl Library {
     pub fn load(path: PathBuf) -> anyhow::Result<Self> {
