@@ -1,9 +1,11 @@
 [workspace]
 members = [
     "cli",
+    "gpt",
     "osc",
     "osc_codegen",
-    "platform",
+    # "platfosrm",
+    "platform-v2",
     "examples/module"
 ]
 
