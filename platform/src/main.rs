@@ -4,34 +4,17 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use hyper::{Body, Request, Response, Server};
+use anyhow::{Error, Result};
+use hyper::{Body, Request, Response, Server, StatusCode};
 use hyperlocal::UnixServerExt;
-use platform::Platform;
-use routerify::{prelude::RequestExt, Error, Router};
+
+use routerify::{prelude::RequestExt, Middleware, RequestInfo, Router};
 use routerify_unixsocket::UnixRouterService;
-use serde::Deserialize;
 
-mod platform;
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct GetRequest {
-    // client_session: String,
-    component_name: String,
-    object_name: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct SetRequest {
-    // client_session: String,
-    component_name: String,
-    object_name: String,
-    payload: osc::module::schema::Value, // TODO: harden this
-}
+use platform_v2::{platform::Platform, Value};
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     pretty_env_logger::init();
 
     let path = Path::new("/run/osconfig/mpid.sock");
@@ -41,92 +24,70 @@ async fn main() -> anyhow::Result<()> {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
     }
 
-    let platform = Arc::new(Mutex::new(platform::Platform::load()?));
+    let platform = Platform::load()?;
+    let platform = Arc::new(Mutex::new(platform));
 
     let router: Router<Body, Error> = Router::builder()
         .data(platform.clone())
-        .post("/MpiGet", |mut req| async move {
-            let body = parse_body::<GetRequest>(&mut req).await.unwrap();
-            let platform = req.data::<Arc<Mutex<Platform>>>().unwrap();
-
-            log::info!("MpiGet: {:?}", body);
-
-            let component = body.component_name;
-            let object = body.object_name;
-
-            let payload = platform.lock().unwrap().get(&component, &object);
-
-            match payload {
-                Ok(payload) => Ok(Response::builder()
-                    .status(200)
-                    .body(Body::from(payload))
-                    .unwrap()),
-                    Err(err) => Ok(Response::builder()
-                    .status(500)
-                    .body(Body::from(err.to_string()))
-                    .unwrap()),
-            }
-        })
-        .post("/MpiSet", |mut req| async move {
-            let body = parse_body::<SetRequest>(&mut req).await.unwrap();
-            let platform = req.data::<Arc<Mutex<Platform>>>().unwrap();
-
-            log::info!("MpiSet {:?}", body);
-
-            let component = body.component_name;
-            let object = body.object_name;
-            let payload = body.payload;
-            let payload = serde_json::to_string(&payload).unwrap(); // TODO: this chould be better
-
-            let payload = platform.lock().unwrap().set(&component, &object, &payload);
-
-            match payload {
-                Ok(_) => Ok(Response::builder()
-                    .status(200)
-                    .body(Body::from(""))
-                    .unwrap()),
-                Err(err) => Ok(Response::builder()
-                    .status(500)
-                    .body(Body::from(err.to_string()))
-                    .unwrap()),
-            }
-        })
-        .post("MpiGetReported", |_| async move {
-            // TODO:
-            log::info!("MpiGetReported");
-            Ok(Response::builder()
-            .status(200)
-            .body(Body::from("{}"))
-            .unwrap())
-        })
-        .post("/MpiSetDesired", |_| async move {
-            // TODO:
-            log::info!("MpiSetDesired");
-            Ok(Response::builder()
-                .status(200)
-                .body(Body::from(""))
-                .unwrap())
-        })
-        .post("/MpiOpen", |_| async move {
-            // REVIEW: return a session id
-            let body = Response::builder()
-                .status(200)
-                .body(Body::from("\"abc123\""))
-                .unwrap();
-
-            log::info!("MpiOpen {:?}", body);
-            Ok(body)
-        })
+        .middleware(Middleware::pre(logger))
+        .get("/:component/:object", reported_handler)
+        .post("/:component/:object", desired_handler)
+        .err_handler_with_info(error_handler)
         .build()
         .unwrap();
 
     let service = UnixRouterService::new(router).unwrap();
-    Server::bind_unix(path)?.serve(service).await?;
+    let server = Server::bind_unix(path)?.serve(service);
+
+    server.await?;
 
     Ok(())
 }
 
-async fn parse_body<T>(req: &mut Request<Body>) -> anyhow::Result<T>
+// A handler for POST "/:component/:object" requests
+async fn desired_handler(mut req: Request<Body>) -> Result<Response<Body>> {
+    let value = parse_body::<Value>(&mut req).await.unwrap();
+    let platform = req.data::<Arc<Mutex<Platform>>>().unwrap();
+
+    let component = req.param("component").unwrap();
+    let object = req.param("object").unwrap();
+
+    platform.lock().unwrap().set(&component, &object, &value)?;
+
+    Ok(Response::new(Body::from("")))
+}
+
+// A handler for GET "/:component/:object" requests
+async fn reported_handler(req: Request<Body>) -> Result<Response<Body>> {
+    let platform = req.data::<Arc<Mutex<Platform>>>().unwrap();
+
+    let component = req.param("component").unwrap();
+    let object = req.param("object").unwrap();
+
+    let value = platform.lock().unwrap().get(&component, &object)?;
+
+    Ok(Response::new(Body::from(serde_json::to_string(&value)?)))
+}
+
+async fn logger(req: Request<Body>) -> Result<Request<Body>> {
+    println!(
+        "{} {} {}",
+        req.remote_addr(),
+        req.method(),
+        req.uri().path()
+    );
+    Ok(req)
+}
+
+async fn error_handler(err: routerify::RouteError, _: RequestInfo) -> Response<Body> {
+    eprintln!("{}", err);
+    Response::builder()
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .body(Body::from(format!("Error: {}", err)))
+        .unwrap()
+}
+
+async fn parse_body<T>(req: &mut Request<Body>) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
