@@ -1,23 +1,23 @@
-# SecurityBaseline 
+# SecurityBaseline
 
 ## Introduction
 
 SecurityBaseline is an [OSConfig Management Module](../../../docs/modules.md) that audits and remediates the [Linux Security Baseline](https://learn.microsoft.com/en-us/azure/governance/policy/samples/guest-configuration-baseline-linux) from the Azure Compute Security Baselines.
 
-The Module Interface Model (MIM) for Security Baseline is at [src/modules/mim/securitybaseline.json](../mim/securitybaseline.json). This MIM implements a single MIM component, `SecurityBaseline`. This component contains two global reported and desired MIM objects, `auditSecurityBaseline` and `remediateSecurityBaseline` that audit and remediate respectively the entire baseline, and also contains several more pairs of reported and desired MIM objects for the individuals checks with names that follow the respective check descriptions. For example:
+The Module Interface Model (MIM) for Security Baseline is at [modules/mim/securitybaseline.json](../mim/securitybaseline.json). This MIM implements a single MIM component, `SecurityBaseline`. This component contains two global reported and desired MIM objects, `auditSecurityBaseline` and `remediateSecurityBaseline` that audit and remediate respectively the entire baseline, and also contains several more pairs of reported and desired MIM objects for the individuals checks with names that follow the respective check descriptions. For example:
 
  Check description | Reported MIM object  | Desired MIM object
 -----|-----|-----
 Ensure nodev option set on home partition | `auditEnsureNodevOptionOnHomePartition` | `remediateEnsureNodevOptionOnHomePartition`
 Ensure users own their home directories | `auditEnsureUsersOwnTheirHomeDirectories` | `remediatesEnsureUsersOwnTheirHomeDirectories`
 
-The SecurityBaseline module implementation is done for all Linux distributions that OSConfig targets today: Ubuntu 18.04, Ubuntu 20.04, Debian 10, Debian 11. In a future release the implementation can be expanded to other distros. 
+The SecurityBaseline module implementation is done for all Linux distributions that OSConfig targets today: Ubuntu 18.04, Ubuntu 20.04, Debian 10, Debian 11. In a future release the implementation can be expanded to other distros.
 
-The full set of reported MIM objects for audit is fully implemented. 
+The full set of reported MIM objects for audit is fully implemented.
 
 Remediation is incomplete for 125 remaining desired MIM objects. All these remaining objects are already plugged into unit-tests, functional tests with test recipe and to all management channels OSConfig supports: [Azure Policy](https://learn.microsoft.com/en-us/azure/governance/policy/overview) via [AutoManage Machine Configuration](https://learn.microsoft.com/en-us/azure/governance/machine-configuration/) and the [Universal NRP](../../adapters/mc/), GitOps, Digital Twins via [IoT Hub](https://learn.microsoft.com/en-us/azure/iot-hub/), Local Management, etc. All that remains are implementations for the 125 checks.
 
-The implementation of the checks follows a rule where there are general utility check functions added to [commonutils](../../common/commonutils/) libraries which are then simply invoked from the [SecurityBaseline module implementation](src/lib/). This will allow us to reuse those checks for other security baseline imlementations in the future.
+The implementation of the checks follows a rule where there are general utility check functions added to [commonutils](../../common/commonutils/) libraries which are then simply invoked from the [SecurityBaseline module implementation](lib/). This will allow us to reuse those checks for other security baseline imlementations in the future.
 
 For example there are functions in [commonutils](../../common/commonutils/) that check and set file access:
 
@@ -26,10 +26,10 @@ int CheckFileAccess(const char* fileName, int desiredOwnerId, int desiredGroupId
 int SetFileAccess(const char* fileName, unsigned int desiredOwnerId, unsigned int desiredGroupId, unsigned int desiredAccess, void* log);
 ```
 
-which then get invoked from several check implementations in [src/lib/securitybaseline.c](src/lib/SecurityBaseline.c), such as for example `AuditEnsurePermissionsOnEtcIssue` and `RemediateEnsurePermissionsOnEtcIssue`.
+which then get invoked from several check implementations in [lib/securitybaseline.c](lib/SecurityBaseline.c), such as for example `AuditEnsurePermissionsOnEtcIssue` and `RemediateEnsurePermissionsOnEtcIssue`.
 
-Note that for the remaining remediation checks there are missing set counterparts to the check functions in [commonutils](../../common/commonutils/) such as for example `CheckFileSystemMountingOption`, `CheckSystemAccountsAreNonLogin`, etc. 
-                                                                                                                                                                          
+Note that for the remaining remediation checks there are missing set counterparts to the check functions in [commonutils](../../common/commonutils/) such as for example `CheckFileSystemMountingOption`, `CheckSystemAccountsAreNonLogin`, etc.
+
 ## Building the module
 
 Follow the instructions in the main [README.md](../../../README.md) how to install prerequisites and how to build OSConfig. The SecurityBaseline module is built with the rest of OSConfig.
@@ -58,12 +58,12 @@ sudo ctest
 
 ### Functional tests
 
-The test recipe for the module is at [src/modules/test/recipes/SecurityBaselineTests.json](../test/recipes/SecurityBaselineTests.json).
+The test recipe for the module is at [modules/test/recipes/SecurityBaselineTests.json](../test/recipes/SecurityBaselineTests.json).
 
 From the build directory, run the test recipe with:
 
 ```bash
-sudo modules/test/moduletest ../src/modules/test/recipes/SecurityBaselineTests.json
+sudo modules/test/moduletest ../modules/test/recipes/SecurityBaselineTests.json
 ```
 
 ### Testing at runtime with OSConfig and RC/DC
@@ -74,7 +74,7 @@ When local management is enabled we can use the desired configuration (DC) file 
 
 ## Continuing implementation
 
-The remediation checks that remain to be fully implemented can be found in [src/lib/SecurityBaseline.c](src/lib/SecurityBaseline.c).
+The remediation checks that remain to be fully implemented can be found in [lib/SecurityBaseline.c](lib/SecurityBaseline.c).
 
 There the MIM object names constants are listed:
 
@@ -113,11 +113,11 @@ static int RemediateEnsureNodevOptionOnVarTmpPartition(void)
 ...
 ```
 
-By returning 0 (success) these empty placeholder checks do not flag any error in the functional recipe tests. Try turning one to a non-zero value (error) and the respective functional test recipe check will fail, etc. 
+By returning 0 (success) these empty placeholder checks do not flag any error in the functional recipe tests. Try turning one to a non-zero value (error) and the respective functional test recipe check will fail, etc.
 
-### Example 
+### Example
 
-An example of a completed check, `auditEnsureAuditdServiceIsRunning` and `remediateEnsureAuditdServiceIsRunning` in [src/lib/SecurityBaseline.c](src/lib/SecurityBaseline.c):
+An example of a completed check, `auditEnsureAuditdServiceIsRunning` and `remediateEnsureAuditdServiceIsRunning` in [lib/SecurityBaseline.c](lib/SecurityBaseline.c):
 
 ```C
 static int AuditEnsureAuditdServiceIsRunning(void)

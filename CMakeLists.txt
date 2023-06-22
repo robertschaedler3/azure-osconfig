@@ -76,7 +76,7 @@ set(OsConfigProjectSourceArchiveFile "${OsConfigProjectSourceArchiveFileNoExt}.t
 set(OsConfigRootBinaryDir ${CMAKE_BINARY_DIR})
 
 message(STATUS "${OsConfigProjectName} v${OsConfigVersionString}")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/../src/common/commonutils/version.h" @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/common/commonutils/version.h" @ONLY)
 
 # GNUInstallPaths CMAKE_INSTALL_SYSCONFDIR for Debian and Mariner is /usr/etc, change to /etc
 message(STATUS "Setting CMAKE_INSTALL_SYSCONFDIR to /etc")

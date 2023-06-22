@@ -45,30 +45,30 @@ mkdir build && cd build
 Build with the following commands issued from under the build subfolder:
 
 ```bash
-cmake ../src -DCMAKE_BUILD_TYPE=Release|Debug -Duse_prov_client=ON -Dhsm_type_symm_key=ON -DBUILD_TESTS=ON|OFF
+cmake ..-DCMAKE_BUILD_TYPE=Release|Debug -Duse_prov_client=ON -Dhsm_type_symm_key=ON -DBUILD_TESTS=ON|OFF
 cmake --build . --config Release|Debug  --target install
 ```
 The following OSConfig files are binplaced at build time:
 
 Source | Destination | Description
 -----|-----|-----
-[src/adapters/pnp/](src/adapters/pnp/) | /usr/bin/osconfig | The OSConfig Agent and the main control binary for OSConfig
-[src/platform/](src/platform/) | /usr/bin/osconfig-platform | The OSConfig Platform binary
-[src/adapters/pnp/daemon/osconfig.conn](src/adapters/pnp/daemon/osconfig.conn) | /etc/osconfig/osconfig.conn | Holds manual IoT Hub device connection id string (optional)
-[src/adapters/pnp/daemon/osconfig.json](src/adapters/pnp/daemon/osconfig.json) | /etc/osconfig/osconfig.json | The main configuration file for OSConfig
-[src/modules/commandrunner/assets/osconfig_commandrunner.cache](src/modules/commandrunner/assets/osconfig_commandrunner.cache) | /etc/osconfig/osconfig_commandrunner.cache | Persistent cache for the CommandRunner module
-[src/adapters/pnp/daemon/osconfig.service](src/adapters/pnp/daemon/osconfig.service) | /etc/systemd/system/osconfig.service | The service unit for the OSConfig Agent
-[src/platform/daemon/osconfig-platform.service](src/platform/daemon/osconfig-platform.service) | /etc/systemd/system/osconfig-platform.service | The service unit for the OSConfig Platform
-[src/adapters/pnp/daemon/osconfig.toml](src/adapters/pnp/daemon/osconfig.toml) | /etc/aziot/identityd/config.d/osconfig.toml | The OSConfig Module configuration for AIS
-[src/modules/deviceinfo/](src/modules/deviceinfo/) | /usr/lib/osconfig/deviceinfo.so | The DeviceInfo module binary
-[src/modules/configuration/](src/modules/configuration/) | /usr/lib/osconfig/configuration.so | The Configuration module binary
-[src/modules/commandrunner/](src/modules/commandrunner/) | /usr/lib/osconfig/commandrunner.so | The CommandRunner module binary
-[src/modules/firewall/](src/modules/firewall/) | /usr/lib/osconfig/firewall.so | The Firewall module binary
-[src/modules/adhs/](src/modules/adhs/) | /usr/lib/osconfig/adhs.so | The Azure Device Health Services (ADHS) module binary
-[src/modules/deliveryoptimization/](src/modules/deliveryoptimization/) | /usr/lib/osconfig/deliveryoptimization.so | The Delivery Optimization (DO) module binary
-[src/modules/hostname/](src/modules/hostname/) | /usr/lib/osconfig/hostname.so | The HostName module binary
-[src/modules/networking/](src/modules/networking/) | /usr/lib/osconfig/networking.so | The Networking module binary
-[src/modules/tpm/](src/modules/tpm/) | /usr/lib/osconfig/tpm.so | The TPM module binary
+[adapters/pnp/](adapters/pnp/) | /usr/bin/osconfig | The OSConfig Agent and the main control binary for OSConfig
+[platform/](platform/) | /usr/bin/osconfig-platform | The OSConfig Platform binary
+[adapters/pnp/daemon/osconfig.conn](adapters/pnp/daemon/osconfig.conn) | /etc/osconfig/osconfig.conn | Holds manual IoT Hub device connection id string (optional)
+[adapters/pnp/daemon/osconfig.json](adapters/pnp/daemon/osconfig.json) | /etc/osconfig/osconfig.json | The main configuration file for OSConfig
+[modules/commandrunner/assets/osconfig_commandrunner.cache](modules/commandrunner/assets/osconfig_commandrunner.cache) | /etc/osconfig/osconfig_commandrunner.cache | Persistent cache for the CommandRunner module
+[adapters/pnp/daemon/osconfig.service](adapters/pnp/daemon/osconfig.service) | /etc/systemd/system/osconfig.service | The service unit for the OSConfig Agent
+[platform/daemon/osconfig-platform.service](platform/daemon/osconfig-platform.service) | /etc/systemd/system/osconfig-platform.service | The service unit for the OSConfig Platform
+[adapters/pnp/daemon/osconfig.toml](adapters/pnp/daemon/osconfig.toml) | /etc/aziot/identityd/config.d/osconfig.toml | The OSConfig Module configuration for AIS
+[modules/deviceinfo/](modules/deviceinfo/) | /usr/lib/osconfig/deviceinfo.so | The DeviceInfo module binary
+[modules/configuration/](modules/configuration/) | /usr/lib/osconfig/configuration.so | The Configuration module binary
+[modules/commandrunner/](modules/commandrunner/) | /usr/lib/osconfig/commandrunner.so | The CommandRunner module binary
+[modules/firewall/](modules/firewall/) | /usr/lib/osconfig/firewall.so | The Firewall module binary
+[modules/adhs/](modules/adhs/) | /usr/lib/osconfig/adhs.so | The Azure Device Health Services (ADHS) module binary
+[modules/deliveryoptimization/](modules/deliveryoptimization/) | /usr/lib/osconfig/deliveryoptimization.so | The Delivery Optimization (DO) module binary
+[modules/hostname/](modules/hostname/) | /usr/lib/osconfig/hostname.so | The HostName module binary
+[modules/networking/](modules/networking/) | /usr/lib/osconfig/networking.so | The Networking module binary
+[modules/tpm/](modules/tpm/) | /usr/lib/osconfig/tpm.so | The TPM module binary
 
 ### Enable and start OSConfig for the first time
 
@@ -192,9 +192,9 @@ To disable local management, set "LocalManagement" to 0.
 
 OSConfig can apply to the device desired configuration in MIM JSON payload format (same as for RC/DC) read from a Git repository and branch. The DC file must be named `osconfig_desired.json` and be placed in the root of the repository.
 
-By default, desired configuration (DC) over GitOps is disabled and there are no configured Git repository or branch. 
+By default, desired configuration (DC) over GitOps is disabled and there are no configured Git repository or branch.
 
-To enable GitOps DC management, edit the OSConfig general configuration file `/etc/osconfig/osconfig.json` and there: 
+To enable GitOps DC management, edit the OSConfig general configuration file `/etc/osconfig/osconfig.json` and there:
 
 1. Set (or add if needed) a string value named "GitRepositoryUrl" to a string value containing the string that can be used to clone a Git repository, for example (this example uses OSConfig's own repository but can be anything):
 
@@ -269,7 +269,7 @@ sudo -E su
 export http_proxy=http://user:password@wwww.foo.org:100//
 ```
 
-The environment variable can also be set in the OSConfig service unit file by uncommenting and editing the following line in [src/adapters/pnp/daemon/osconfig.service](src/adapters/pnp/daemon/osconfig.service):
+The environment variable can also be set in the OSConfig service unit file by uncommenting and editing the following line in [adapters/pnp/daemon/osconfig.service](adapters/pnp/daemon/osconfig.service):
 
 ```
 # Uncomment and edit next line to configure OSConfig with a proxy to connect to the IoT Hub
@@ -282,7 +282,7 @@ After editing the service unit file, stop and disable osconfig.service, rebuild 
 sudo systemctl stop osconfig.service
 sudo systemctl disable osconfig.service
 cd build
-cmake ../src -DCMAKE_BUILD_TYPE=Release|Debug -Duse_prov_client=ON -Dhsm_type_symm_key=ON -DBUILD_TESTS=ON|OFF
+cmake .. -DCMAKE_BUILD_TYPE=Release|Debug -Duse_prov_client=ON -Dhsm_type_symm_key=ON -DBUILD_TESTS=ON|OFF
 cmake --build . --config Release|Debug  --target install
 sudo systemctl enable osconfig.service
 sudo systemctl start osconfig.service
