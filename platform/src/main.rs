@@ -1,8 +1,9 @@
-use anyhow::{Context, Error, Result};
-use hyper::{Body, Request, Response, Server, StatusCode};
-use hyperlocal::UnixServerExt;
-use routerify::{prelude::RequestExt, Middleware, RequestInfo, Router};
-use routerify_unixsocket::UnixRouterService;
+use std::sync::{Arc, Mutex};
+
+use anyhow::{Context, Result};
+use tokio::net::UnixListener;
+use tokio_stream::wrappers::UnixListenerStream;
+use warp::Filter;
 
 use platform::Platform;
 
@@ -22,47 +23,32 @@ async fn main() -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    let platform = Platform {};
+    let listener = UnixListener::bind(SOCKET_PATH)?;
+    let stream = UnixListenerStream::new(listener);
 
-    let router: Router<Body, Error> = Router::builder()
-        .data(platform.clone())
-        .middleware(Middleware::pre(logger))
-        .get("/read", read_handler)
-        .post("/write", write_handler)
-        .err_handler_with_info(error_handler)
-        .build()
-        .unwrap();
+    // TEMPORARY: Get the modules directory as a commandline argument
+    let args: Vec<String> = std::env::args().collect();
+    let modules_dir = args.get(1).context("Missing modules directory argument")?;
 
-    let router = UnixRouterService::new(router).unwrap();
-    let server = Server::bind_unix(path)?.serve(router);
+    let platform = Arc::new(Mutex::new(Platform::new(&modules_dir)?));
+    let platform = warp::any().map(move || platform.clone());
 
-    server.await?;
+    // NOTE: placeholder routes
+
+    let read = warp::path!("read")
+        .and(warp::get())
+        .and(platform.clone())
+        .map(|platform| "TODO: implement read");
+
+    let write = warp::path!("write")
+        .and(warp::post())
+        .and(warp::body::json().map(|body: serde_json::Value| body))
+        .and(platform.clone())
+        .map(|body, platform| "TODO: implement write");
+
+    let routes = read.or(write).with(warp::log("osc-platform"));
+
+    warp::serve(routes).run_incoming(stream).await;
 
     Ok(())
-}
-
-async fn write_handler(mut req: Request<Body>) -> Result<Response<Body>> {
-    Ok(Response::new(Body::from("TODO: implement write_handler")))
-}
-
-async fn read_handler(req: Request<Body>) -> Result<Response<Body>> {
-    Ok(Response::new(Body::from("TODO: implement read_handler")))
-}
-
-async fn logger(req: Request<Body>) -> Result<Request<Body>> {
-    log::trace!(
-        "{} {} {}",
-        req.remote_addr(),
-        req.method(),
-        req.uri().path()
-    );
-    Ok(req)
-}
-
-async fn error_handler(err: routerify::RouteError, _: RequestInfo) -> Response<Body> {
-    eprintln!("{}", err);
-    Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body(Body::from(format!("Error: {}", err)))
-        .unwrap()
 }
