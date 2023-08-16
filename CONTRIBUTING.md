@@ -1,41 +1,85 @@
-# Introduction
+# Contribution Guidelines
 
-Azure Device OS Configuration (OSConfig) is a modular services stack running on a Linux IoT Edge device that facilitates remote device management over Azure as well from local management authorities. OSConfig contains a PnP Agent, a Management Platform (Modules Manager) and several Management Modules. For more information on OSConfig see [OSConfig North Star Architecture](docs/architecture.md) and [OSConfig Roadmap](docs/roadmap.md).
+There are many ways in which you can participate in this project: submitting pull requests, reporting issues, and suggesting new features.
 
-# Code of conduct
+## Prerequisites
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+In order to download necessary tools, clone the repository, and install dependencies, you must install the following tools:
 
-# Contributing
+<!-- TODO: -->
 
-We welcome contributions to OSConfig. The main way of contributing to and extending OSConfig is via developing new **Management Modules**. See [OSConfig Management Modules](docs/modules.md).
+### Development Container
 
-Contributions to OSConfig can happen in one of the following ways:
+Alternatively, you can avoid local dependency installation as this repository includes a Visual Studio Code Remote - Containers / Codespaces [development container](https://github.com/Azure/vscode-osconfig/tree/main/.devcontainer).
 
-Contribution | Where | Pull request implications
------|-----|-----
-Adding a new fully decoupled OSConfig Management Module | New /src/modules/<modulename> | The most common type of contribution to OSConfig. Pull requests that add a new module without changes in other components are the easiest ones to get approved.
-Modifying an existing OSConfig Management Module | Existing /src/modules/<modulename> | For example, when upgrading the version of an existing module. Similar to previous kind of requests.
-Adding new and/or changing multiple OSConfig Management Modules at once | /src/modules/ | Generally not recommended. Such pull requests may be accepted if the change is simple enough to warrant a bulk request. It is recommended to split into separate pull request for each module.
-Adding a new OSConfig Management Module with changes into the OSConfig Management Platform, the OSConfig Adapters or the common libraries | /src/modules/, /src/platform/, /src/adapters/, /src/common/ | Generally not recommended. Such pull requests require special review and approval from the core team and may be approved on a case by case basis.
-Adding a new and/or changing an existing feature of the OSConfig Management Platform, the OSConfig Agent and/or the common libraries | /src/platform/, /src/adapters/, /src/common/ | Generally not recommended. Such pull requests require special review and approval from the core team and may be approved on a case by case basis. If the proposed change follows the current [OSConfig North Star Architecture](architecture.md) and [OSConfig Roadmap](roadmap.md) that increases the chance of approval.
-Changing or adding to the documentation | *, /docs/ | Generally not recommended. Such pull requests require special review and approval from the core team and may be approved on a case by case basis.
+- For [Remote - Containers](https://aka.ms/vscode-remote/download/containers), use the **Remote-Containers: Open Repository in Container...** command which creates a Docker volume for better disk I/O on macOS and Windows.
+- For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace command**.
 
-Pull requests with few exceptions must contain appropriate unit-tests. We cannot allow test coverage to go down. Pull requests containing code changes without accompanying unit tests may be rejected.
+## Build
 
-Most contributions require you to agree to a Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us the rights to use your contribution. For details, visit https://cla.microsoft.com. When you submit a pull request, a CLA-bot will automatically determine whether you need to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the instructions provided by the bot. You will only need to do this once across all repositories using our CLA.
+If you want to understand how this project works or want to debug an issue, you'll want to get the source code, build it and run the OSConfig locally.
 
-## Submitting a PR
+First, fork the repository so that you can make a pull request later and clone your fork:
 
-1. Create a GitHub account if you do not have one yet: [Join GitHub](https://github.com/join).
-2. Fork the public GitHub repo: [https://github.com/Azure/azure-osconfig](https://github.com/Azure/azure-osconfig). [Learn more about forking a repo](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo).
-3. Clone the forked repo. Optionally create a new branch to keep your changes isolated from the `main` branch. By forking and cloning the public GitHub repo, a copy of repo will be created in your GitHub account and a local copy will be locally created in your clone. Use this local copy to make modifications.
-4. Commit the changes locally and push to your fork.
-6. From your fork, create a PR that targets the `main` branch. [Learn more about pull request](https://docs.github.com/en/desktop/contributing-and-collaborating-using-github-desktop/creating-an-issue-or-pull-request#creating-a-pull-request).
-7. The PR triggers a series of GitHub actions that will validate the new submitted changes.
+```bash
+git clone https://github.com/<your-github-username>/azure-osconfig
+```
 
-The OSConfig Core team will respond to a PR that passes all checks in 3 business days.
+Occasionally you will want to merge changes in the upstream repository (the official code repo) with your fork. You can do this by adding the upstream repository as a remote and pulling from it:
 
-# Contact
+```bash
+git remote add upstream
+git pull upstream main
+```
 
-You may contact the OSConfig Core team at [osconfigcore@microsoft.com](mailto:osconfigcore@microsoft.com) to ask questions about OSConfig, to report bugs, to suggest new features, or inquire about any other OSConfig related topic.
+Manage any merge conflicts, commit them, and then push them to your fork.
+
+<!-- TODO: -->
+
+### Debugging
+
+<!-- TODO: -->
+
+## Issues
+
+Before submitting an issue, please search the list of [open issues](https://github.com/Azure/azure-osconfig/issues) to see if the issue or feature request has already been filed. If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments).
+
+- 👍 - upvote
+- 👎 - downvote
+
+If you cannot find an existing issue that describes your bug or feature, submit an issue using the guidelines below.
+
+File a single issue per problem or feature request.
+
+- Do not enumerate multiple bugs or feature requests in the same issue.
+- Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
+
+The more information you can provide, the more likely someone will be successful reproducing the issue and finding a fix.
+
+Please include the following with each issue:
+
+- Reproducible steps and what you expected versus what you actually saw.
+- Images, animations, or a video. These can usually be pasted directly into the description field on GitHub. Note that images and animations illustrate repro-steps but *do not* replace them.
+- A code snippet that demonstrates the issue, or a link to a code repository we can easily pull down onto our machine to recreate the issue.
+- Simplify your code/example around the issue so we can better isolate the problem.
+
+> Note: Because we may need to copy and paste the code snippet, including a code snippet as a media file (e.g. .gif) is not sufficient.
+
+Don't feel bad if we can't reproduce the issue and ask for more information!
+
+## Pull Requests
+
+Pull requests are welcome. Before submitting a pull request, please ensure that:
+
+- You have signed the [Contributor License Agreement](https://cla.opensource.microsoft.com/microsoft).
+- Your code adheres to the existing style in the codebase (indentation, accurate comments, etc.).
+- You have added unit tests for the new code.
+- You have run all the unit tests using `npm test`.
+
+## Suggestions
+
+We're also interested in your feedback and suggestions. You can submit a [bug or feature request](https://github.com/Azure/azure-osconfig/issues/new/choose). To make this process more effective, please include as much information and detail as possible.
+
+## Discussion Etiquette
+
+In order to keep the conversation clear and transparent, please limit discussion to English and keep things on topic with the issue. Be considerate to others and try to be courteous and professional at all times.
