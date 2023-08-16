@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-pub mod bindings;
+// pub mod controller;
 pub mod module;
 pub mod platform;
 

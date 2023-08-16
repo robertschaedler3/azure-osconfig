@@ -4,4 +4,9 @@ members = [
     "osc",
     "osc_codegen",
     "platform",
+    "modules/*"
+]
+
+exclude = [
+    "adapters",
 ]

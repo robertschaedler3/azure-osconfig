@@ -1,3 +1,5 @@
+// TODO: use something like "confy" to load this configuration from the correct file
+
 use serde::de::{self, Deserializer, Unexpected};
 use serde::{Deserialize, Serialize, Serializer};
 

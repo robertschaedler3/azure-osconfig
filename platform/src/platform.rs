@@ -19,6 +19,7 @@ pub struct Module {
     session: Option<Session>,
 }
 
+// TODO: make Module a genric type that must implement CLient
 #[derive(Clone)]
 pub struct Platform {
     modules: Vec<Module>,
@@ -105,6 +106,13 @@ impl Platform {
             Err(anyhow!("Module not found"))
         }
     }
+
+    // TODO: GetReported
+
+    // TODO: SetDesired
+
+    // REVIEW: Ideally GetReported/SetDesired should be variants of Get/Set that use some "selection set"
+    // to query all the components of every module at once (one "round trip" to each module).
 }
 
 impl Drop for Platform {

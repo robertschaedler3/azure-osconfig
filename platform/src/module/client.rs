@@ -5,34 +5,12 @@ use std::{
 };
 
 use anyhow::anyhow;
-use serde::Deserialize;
 use sharedlib::{FuncArc, LibArc, Symbol};
 
-use crate::bindings::{
-    Close, Get, Handle, Info, JsonString, Open, Set, CLOSE, GET, INFO, OK, OPEN, SET,
-};
+use osc::module::{bindings::*, ModuleInfo};
 
-// TODO: this should be called something like "Schema"
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")] // TODO: this seems bad to be PascalCase
-pub struct ModuleInfo {
-    pub name: String,
-    pub description: String,
-    pub manufacturer: String,
-    // pub version: String, // TODO: Version struct ???
-    pub components: Vec<String>,
-    // TODO:
-    // - version info
-    // - lifetime
-    // - license URI
-    // - project URI
-    // - user account
-}
-
-/// A struct representation of a module's shared library.
 #[derive(Clone)]
 pub struct Library {
-    // lib: LibArc,
     info: FuncArc<Info>,
     open: FuncArc<Open>,
     close: FuncArc<Close>,
@@ -46,15 +24,19 @@ pub struct Session(Handle);
 // https://stackoverflow.com/questions/60292897/why-cant-i-send-mutexmut-c-void-between-threads
 unsafe impl Send for Session {}
 
+// TODO: impl Client for Library
 impl Library {
     pub fn load(path: PathBuf) -> anyhow::Result<Self> {
         if path.extension().unwrap() != "so" {
             return Err(anyhow::anyhow!("Invalid module file extension"));
         }
 
+        log::info!("Loading module: {:?}", path);
+
         unsafe {
             let lib = LibArc::new(path).map_err(|err| anyhow!(err.to_string()))?;
 
+            // TODO: collect each of these into a single result and log as appropriate
             let info: FuncArc<Info> = lib
                 .find_func(INFO)
                 .map_err(|err| anyhow!(err.to_string()))?;
@@ -68,7 +50,6 @@ impl Library {
             let get: FuncArc<Get> = lib.find_func(GET).map_err(|err| anyhow!(err.to_string()))?;
 
             Ok(Self {
-                // lib,
                 info,
                 open,
                 close,
@@ -79,6 +60,8 @@ impl Library {
     }
 
     pub fn info(&self, client: &str) -> anyhow::Result<ModuleInfo> {
+        // TODO: log traces
+
         let get_info = unsafe { self.info.get() };
         let client_name = CString::new(client).unwrap();
         let mut payload: JsonString = std::ptr::null_mut();
@@ -86,12 +69,11 @@ impl Library {
 
         let status = get_info(client_name.as_ptr(), &mut payload, &mut payload_size_bytes);
 
-        if status != OK {
+        if status != MODULE_OK {
             return Err(anyhow::anyhow!("GetInfo() failed: {}", status));
         }
 
-        let payload =
-            unsafe { slice::from_raw_parts(payload as *const u8, payload_size_bytes as usize) };
+        let payload = unsafe { slice::from_raw_parts(payload as *const u8, payload_size_bytes as usize) };
         let payload = String::from_utf8_lossy(payload).to_string();
 
         let info: ModuleInfo = serde_json::from_str(&payload)?;
@@ -100,6 +82,8 @@ impl Library {
     }
 
     pub fn open(&self, client: &str, max_payload_size: u32) -> anyhow::Result<Session> {
+        // TODO: log traces
+
         let open = unsafe { self.open.get() };
         let client_name = CString::new(client).unwrap();
 
@@ -113,6 +97,8 @@ impl Library {
     }
 
     pub fn close(&self, session: Session) -> anyhow::Result<()> {
+        // TODO: log traces
+
         let close = unsafe { self.close.get() };
         let handle = session.0;
 
@@ -129,6 +115,8 @@ impl Library {
         payload: &str,
         size: usize,
     ) -> anyhow::Result<i32> {
+        log::trace!("Set: {} {} {} {}", component, object, payload, size);
+
         let set = unsafe { self.set.get() };
         let handle = session.0;
         let component_name = CString::new(component).unwrap();
@@ -152,6 +140,8 @@ impl Library {
         component: &str,
         object: &str,
     ) -> anyhow::Result<(i32, String)> {
+        // TODO: log traces
+
         let get = unsafe { self.get.get() };
         let handle = session.0;
         let component_name = CString::new(component).unwrap();
@@ -167,8 +157,7 @@ impl Library {
             &mut payload_size_bytes,
         );
 
-        let payload =
-            unsafe { slice::from_raw_parts(payload as *const u8, payload_size_bytes as usize) };
+        let payload = unsafe { slice::from_raw_parts(payload as *const u8, payload_size_bytes as usize) };
         let payload = String::from_utf8_lossy(payload).to_string();
 
         Ok((status, payload))
