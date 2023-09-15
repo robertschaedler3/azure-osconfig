@@ -1,5 +1,6 @@
 {
     "cmake.sourceDirectory": "${workspaceFolder}/src",
+    "cmake.configureArgs": [],
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cmake.configureSettings": {
         "ENABLE_PAYLOAD_LOGGING": "OFF",

@@ -1,5 +1,4 @@
 build/
-.vscode
 out
 dist
 node_modules
@@ -12,3 +11,5 @@ node_modules
 .terraform/
 .terraform.lock.hcl
 *.tfstate*
+
+target

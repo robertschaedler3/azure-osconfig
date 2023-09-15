@@ -24,6 +24,8 @@ RUN apt -y update && apt-get -y install \
 
 ENV OPENSSL_ROOT_DIR=/usr/lib/arm-linux-gnueabihf/
 
+RUN curl https://sh.rustup.rs -sSf | sh
+
 WORKDIR /git
 RUN git clone https://github.com/Kitware/CMake --recursive -b v3.22.0-rc1
 RUN cd CMake && ./bootstrap && make -j$(nproc) && make install && hash -r && rm -rf /git/CMake
