@@ -34,8 +34,7 @@ impl From<Handle> for Context {
     }
 }
 
-/// TODO: note why we can't call close in Drop if this is Clone
-pub struct SharedLibClient {
+pub struct SharedLib {
     info: FuncArc<Info>,
     close: FuncArc<Close>,
     set: FuncArc<Set>,
@@ -43,13 +42,13 @@ pub struct SharedLibClient {
     context: Context,
 }
 
-impl Drop for SharedLibClient {
+impl Drop for SharedLib {
     fn drop(&mut self) {
         call_close(self.close.clone(), self.context.0);
     }
 }
 
-impl Client for SharedLibClient {
+impl Client for SharedLib {
     fn load<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let lib: LibArc = unsafe { LibArc::new(path) }?;
 
@@ -59,7 +58,6 @@ impl Client for SharedLibClient {
         let get: FuncArc<Get> = unsafe { lib.find_func("MmiGet") }?;
         let set: FuncArc<Set> = unsafe { lib.find_func("MmiSet") }?;
 
-        // REVIEW: what max_payload_size_bytes should be used here?
         let context = call_open(open, CString::new(PLATFORM_CLIENT)?.as_ptr(), 0).into();
 
         Ok(Self {
@@ -128,7 +126,7 @@ impl Client for SharedLibClient {
 }
 
 // REVIEW: fix enter/exit trace formatting for these functions... for example:
-// #[trace(format_enter = "SharedLibClient::get({component}, {object})", format_exit = "SharedLibClient::get({component}, {object}) returned {r}")]
+// #[trace(format_enter = "SharedLib::get({component}, {object})", format_exit = "SharedLib::get({component}, {object}) returned {r}")]
 
 #[trace(logging)]
 fn call_info(info: FuncArc<Info>, client_name: *const c_char, payload: *mut JsonString, payload_size_bytes: *mut c_int) -> Result<(), Errno> {

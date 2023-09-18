@@ -44,44 +44,44 @@ async fn main() -> Result<()> {
     let mut sighup = signal(SignalKind::hangup())?;
 
     // REVIEW: initialize the platform asynchronously (server needs to be available ASAP)
-    let platform = platform::init()?;
+    // let platform = platform::init()?;
 
-    {
-        let platform = platform.clone();
+    // {
+    //     let platform = platform.clone();
 
-        tokio::spawn(async move {
-            while let Some(_) = sighup.recv().await {
-                log::debug!("Received SIGHUP, reloading platform");
+    //     tokio::spawn(async move {
+    //         while let Some(_) = sighup.recv().await {
+    //             log::debug!("Received SIGHUP, reloading platform");
 
-                let mut platform = platform.lock().unwrap();
+    //             let mut platform = platform.lock().unwrap();
 
-                if let Err(e) = platform.reload() {
-                    log::error!("Failed to reload platform: {}", e);
-                }
-            }
-        });
-    }
+    //             if let Err(e) = platform.reload() {
+    //                 log::error!("Failed to reload platform: {}", e);
+    //             }
+    //         }
+    //     });
+    // }
 
-    let routes = routes::api(platform)
-        .with(warp::log("platform"))
-        .recover(handlers::handle_rejection);
+    // let routes = routes::api(platform)
+    //     .with(warp::log("platform"))
+    //     .recover(handlers::handle_rejection);
 
-    let server = warp::serve(routes).serve_incoming_with_graceful_shutdown(incoming, async move {
-        tokio::select! {
-            _ = sigint.recv() => {
-                log::debug!("Received SIGINT, shutting down");
-            }
-            _ = sigquit.recv() => {
-                log::debug!("Received SIGQUIT, shutting down");
-            }
-            _ = sigterm.recv() => {
-                log::debug!("Received SIGTERM, shutting down");
-            }
-        }
-    });
+    // let server = warp::serve(routes).serve_incoming_with_graceful_shutdown(incoming, async move {
+    //     tokio::select! {
+    //         _ = sigint.recv() => {
+    //             log::debug!("Received SIGINT, shutting down");
+    //         }
+    //         _ = sigquit.recv() => {
+    //             log::debug!("Received SIGQUIT, shutting down");
+    //         }
+    //         _ = sigterm.recv() => {
+    //             log::debug!("Received SIGTERM, shutting down");
+    //         }
+    //     }
+    // });
 
-    log::info!("Listening on: {}", path.display());
-    server.await;
+    // log::info!("Listening on: {}", path.display());
+    // server.await;
 
     Ok(())
 }

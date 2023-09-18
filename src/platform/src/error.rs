@@ -8,6 +8,9 @@ pub enum Error {
     #[error("Unable to find component: {0}")]
     ComponentNotFound(String),
 
+    #[error("Module failed to load: {0}")]
+    ModuleFailedToLoad(String),
+
     #[error(transparent)]
     Library(#[from] libloading::Error),
 

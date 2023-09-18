@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, fmt, path::Path};
+use std::{
+    cmp::Ordering,
+    fmt,
+    path::Path,
+};
 
 use serde::Deserialize;
 use serde_repr::Deserialize_repr;
@@ -7,15 +11,22 @@ use crate::error::Error;
 
 mod sharedlib;
 
-pub use sharedlib::SharedLibClient as DefaultClient;
+pub use sharedlib::SharedLib as DefaultClient;
 
 pub type Payload = serde_json::Value;
 
 pub trait Client: Sized {
+    // REVIEW: how to do load() not on a client?
     fn load<P: AsRef<Path>>(path: P) -> Result<Self, Error>;
     fn meta(&self) -> Result<Metadata, Error>;
     fn get(&self, component: &str, object: &str) -> Result<Payload, Error>;
     fn set(&self, component: &str, object: &str, payload: &Payload) -> Result<(), Error>;
+}
+
+struct Module<T: Client> {
+    path: String,
+    client: Option<T>,
+    metadata: Metadata,
 }
 
 #[derive(Deserialize)]
@@ -149,8 +160,8 @@ mod tests {
         test_version_cmp("1.0.0.0", "1.0.1.0", Ordering::Less);
         test_version_cmp("1.0.0.0", "1.1.0.0", Ordering::Less);
 
-        test_version_cmp( "1.0.0.1", "1.0.0.0", Ordering::Greater);
-        test_version_cmp( "1.0.1.0", "1.0.0.0", Ordering::Greater);
-        test_version_cmp( "1.1.0.0", "1.0.0.0", Ordering::Greater);
+        test_version_cmp("1.0.0.1", "1.0.0.0", Ordering::Greater);
+        test_version_cmp("1.0.1.0", "1.0.0.0", Ordering::Greater);
+        test_version_cmp("1.1.0.0", "1.0.0.0", Ordering::Greater);
     }
 }

@@ -4,8 +4,8 @@ use warp::{http::StatusCode, reject::Reject, Rejection, Reply};
 
 use crate::{
     config::Reported,
-    models::{CloseBody, GetBody, GetReportedBody, OpenBody, SetBody, SetDesiredBody},
-    Platform, error::Error,
+    error::Error,
+    models::{CloseBody, GetBody, GetReportedBody, OpenBody, SetBody, SetDesiredBody}, Data,
 };
 
 impl Reject for crate::error::Error {}
@@ -18,30 +18,32 @@ pub async fn close(body: CloseBody) -> Result<impl Reply, Rejection> {
     Ok(warp::reply::json(&body.client_session))
 }
 
-pub async fn reported(platform: Platform, opt: GetBody) -> Result<impl Reply, Rejection> {
-    let platform = platform.lock().unwrap();
-    let value = platform.get(&opt.component, &opt.object)?;
-    Ok(warp::reply::json(&value))
+pub async fn reported(
+    data: Data,
+    GetBody {
+        component, object, ..
+    }: GetBody,
+) -> Result<impl Reply, Rejection> {
+    let platform = data.lock().unwrap();
+    Ok(warp::reply::json(&platform.get(&component, &object)?))
 }
 
-pub async fn desired(platform: Platform, body: SetBody) -> Result<impl Reply, Rejection> {
-    let platform = platform.lock().unwrap();
-    let SetBody {
+pub async fn desired(
+    data: Data,
+    SetBody {
         component,
         object,
         payload,
         ..
-    } = body;
-    Ok(warp::reply::json(
-        &platform.set(&component, &object, &payload)?,
-    ))
+    }: SetBody,
+) -> Result<impl Reply, Rejection> {
+    let platform = data.lock().unwrap();
+    platform.set(&component, &object, &payload)?;
+    Ok(warp::reply())
 }
 
-pub async fn reported_all(
-    platform: Platform,
-    _body: GetReportedBody,
-) -> Result<impl Reply, Infallible> {
-    let platform = platform.lock().unwrap();
+pub async fn reported_all(data: Data, _body: GetReportedBody) -> Result<impl Reply, Infallible> {
+    let platform = data.lock().unwrap();
 
     let Reported(reported) = &platform.config.reported;
 
@@ -71,11 +73,8 @@ pub async fn reported_all(
     Ok(warp::reply::json(&all))
 }
 
-pub async fn desired_all(
-    platform: Platform,
-    body: SetDesiredBody,
-) -> Result<impl Reply, Rejection> {
-    let platform = platform.lock().unwrap();
+pub async fn desired_all(data: Data, body: SetDesiredBody) -> Result<impl Reply, Rejection> {
+    let platform = data.lock().unwrap();
 
     // Iterate over the JSON object and call set() on each component/object pair.
 
@@ -94,14 +93,14 @@ pub async fn desired_all(
 /// If the error is a `crate::error::Error`, the error message will be returned. Otherwise, a
 /// generic "Internal Server Error" message will be returned.
 pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
-
     let (code, message) = match err.find::<crate::error::Error>() {
         Some(err) => {
             log::error!("{}", err);
             match err {
-                Error::ComponentNotFound(component) => {
-                    (StatusCode::NOT_FOUND, format!("Component not found: {}", component))
-                }
+                Error::ComponentNotFound(component) => (
+                    StatusCode::NOT_FOUND,
+                    format!("Component not found: {}", component),
+                ),
                 Error::Json(err) => (StatusCode::BAD_REQUEST, err.to_string()),
                 Error::Null(err) => (StatusCode::BAD_REQUEST, err.to_string()),
                 Error::Io(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
@@ -112,7 +111,10 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
         }
         None => {
             log::error!("Unhandled rejection: {:?}", err);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error".to_string())
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal Server Error".to_string(),
+            )
         }
     };
 

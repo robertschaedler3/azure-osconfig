@@ -1,0 +1,7 @@
+on: push
+
+jobs:
+  publish:
+    runs-on: [self-hosted, 1ES.Pool=release-pool, 1ES.ImageOverride=ubuntu-22.04]
+    container: mcr.microsoft.com/pmc/pmc-cli
+
