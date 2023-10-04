@@ -1,6 +1,6 @@
-use std::sync::{Arc, Mutex};
-
 use anyhow::{Context, Result};
+use serde::{Serialize, Deserialize};
+use serde_json::Value;
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
 use warp::Filter;
@@ -30,25 +30,43 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let modules_dir = args.get(1).context("Missing modules directory argument")?;
 
-    let platform = Arc::new(Mutex::new(Platform::new(&modules_dir)?));
+    let platform = platform::load(modules_dir)?;
     let platform = warp::any().map(move || platform.clone());
 
-    // NOTE: placeholder routes
-
-    let read = warp::path!("read")
+    let reported = warp::path!("module" / String / String)
         .and(warp::get())
         .and(platform.clone())
-        .map(|platform| "TODO: implement read");
+        .map(|module, property, platform| {
+            let value = get_reported(module, property, platform).unwrap();
+            warp::reply::json(&value)
+        });
 
-    let write = warp::path!("write")
+    let desired = warp::path!("module" / String / String)
         .and(warp::post())
         .and(warp::body::json().map(|body: serde_json::Value| body))
         .and(platform.clone())
-        .map(|body, platform| "TODO: implement write");
+        .map(|module, property, body, _| {
+            log::debug!("Desired: {:?} {:?} {:?}", module, property, body);
+            warp::reply::json(&body)
+        });
 
-    let routes = read.or(write).with(warp::log("osc-platform"));
+    let routes = reported.or(desired).with(warp::log("osc-platform"));
 
     warp::serve(routes).run_incoming(stream).await;
 
     Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum PlatformResponse {
+    #[serde(rename = "data")]
+    Success(Value),
+    Error(String),
+}
+
+// TODO: convert errors into the PlatformResponse::Error variant
+
+fn get_reported(module: String, property: String, platform: Platform) -> Result<PlatformResponse> {
+    platform.lock().unwrap().get(&module, &property).map(|value| PlatformResponse::Success(value))
 }

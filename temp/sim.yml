@@ -1,0 +1,34 @@
+name: sim
+
+# TODO: command aliases for scripts/combined commands
+
+properties:
+  - name: enabled
+    schema: bool
+    # REVIEW: figure out how to reduce duplication for a property that reads and writes to the same value in a file
+    read:
+      action: read-file-content-json
+      file: /etc/sim-agent-edge/config.json
+      path: enabled # JSON node path (array of strings/numbers)
+
+      # optional
+      # lock: true # lock the file while performing the action
+      # timeout: 10 # timeout in seconds
+      # retry: 3 # retry count
+      # default: true # default value if the file doesn't exist, if not default value is provided, the action will fail
+
+    write:
+      action: write-file-content-json
+      file: /etc/sim-agent-edge/config.json
+      path: enabled
+
+      # optional
+      create: true # create the file if it doesn't exist
+
+  # TODO: interdependent properties
+  - name: name
+    schema: string
+    read:
+      script: hostname
+    write:
+      script: hostname {{name}}

@@ -1,0 +1,41 @@
+name: firewall
+
+# description: Provides functionality to observer and configure network hostname and hosts
+# manufacturer: Microsoft
+# version: 1.0.0
+
+properties:
+  - name: state
+    type: string
+    enum: [enabled, disabled]
+
+  - name: fingerprint
+    type: string
+
+  - name: configurationStatus
+    type: string
+    enum: [success, failure]
+
+  - name: configurationStatusDetail
+    type: string
+
+  - name: defaultPolicies
+    type: array
+    items:
+      type: object
+      properties:
+        direction:
+          type: enum
+          enum: [in, out]
+        action:
+          type: enum
+          enum: [accept, drop]
+
+  - name: hosts
+    schema: string
+    read:
+      action: read-file-content
+      path: /etc/hosts
+    write:
+      action: write-file-content
+      path: /etc/hosts
