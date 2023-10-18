@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "src/common/rust/core",
+    "src/common/rust/osc",
+    "src/common/rust/osc_codegen",
+    "src/platform",
+    "src/modules/samples/rust",
+    "src/modules/samples/blah",
+]
+resolver = "2"
