@@ -1,0 +1,16 @@
+[package]
+name = "hostname-rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "hostname_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0.75"
+osc = { path = "../../common/rust/osc" }
+serde = { version = "1.0.192", features = ["derive"] }
+thiserror = "1.0.50"

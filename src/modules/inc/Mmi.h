@@ -4,13 +4,13 @@
 #ifndef MMI_H
 #define MMI_H
 
-typedef void* MMI_HANDLE;
+// typedef void* MMI_HANDLE;
 
 // Plus any error codes from errno.h
-#define MMI_OK 0
+// #define MMI_OK 0
 
 // Not null terminated, UTF-8, JSON formatted string
-typedef char* MMI_JSON_STRING;
+// typedef char* MMI_JSON_STRING;
 
 #ifdef __cplusplus
 extern "C"
@@ -19,25 +19,25 @@ extern "C"
 
 int MmiGetInfo(
     const char* clientName,
-    MMI_JSON_STRING* payload,
+    char** payload,
     int* payloadSizeBytes);
-MMI_HANDLE MmiOpen(
+void* MmiOpen(
     const char* clientName,
     const unsigned int maxPayloadSizeBytes);
-void MmiClose(MMI_HANDLE clientSession);
+void MmiClose(void* clientSession);
 int MmiSet(
-    MMI_HANDLE clientSession,
+    void* clientSession,
     const char* componentName,
     const char* objectName,
-    const MMI_JSON_STRING payload,
+    const char* payload,
     const int payloadSizeBytes);
 int MmiGet(
-    MMI_HANDLE clientSession,
+    void* clientSession,
     const char* componentName,
     const char* objectName,
-    MMI_JSON_STRING* payload,
+    char** payload,
     int* payloadSizeBytes);
-void MmiFree(MMI_JSON_STRING payload);
+void MmiFree(char* payload);
 
 #ifdef __cplusplus
 }

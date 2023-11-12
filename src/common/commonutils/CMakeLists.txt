@@ -5,7 +5,7 @@ project(commonutils)
 
 find_package(RapidJSON REQUIRED)
 
-add_library(commonutils STATIC 
+add_library(commonutils STATIC
     CommandUtils.c
     ConfigUtils.c
     DaemonUtils.c
@@ -16,6 +16,7 @@ add_library(commonutils STATIC
     SocketUtils.c
     UrlUtils.c
     UserUtils.c
+    utils.c
     CommonUtils.cpp)
 
 target_compile_options(commonutils PRIVATE -Wno-psabi -Wall -Wextra -Wunused -Werror -Wformat -Wformat-security -Wno-nonnull -Wno-unused-result -Wunused-const-variable=2 -Wunused-macros)
@@ -26,6 +27,6 @@ target_include_directories(commonutils
         ${RAPIDJSON_INCLUDE_DIRS}
 )
 
-target_link_libraries(commonutils PRIVATE 
-    logging 
+target_link_libraries(commonutils PRIVATE
+    logging
     parsonlib)
