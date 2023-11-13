@@ -40,8 +40,8 @@ enum Commands {
         value: String,
     },
 
-    /// Lists all components
-    List,
+    // Lists all components
+    // List,
 }
 
 fn main() -> Result<()> {
@@ -83,12 +83,12 @@ fn main() -> Result<()> {
                 .get(&component, &property)
                 .context("Unable to get property")?;
 
-            if args.verbose {
-                println!("{} - ({}.{})", module.path.file_name().unwrap().to_string_lossy().bright_black(), component.blue(), property.blue());
+            // if args.verbose {
+                // println!("{} - ({}.{})", module.path.file_name().unwrap().to_string_lossy().bright_black(), component.blue(), property.blue());
                 // println!("{}", to_colored_json_auto(&module.meta).unwrap());
-            }
+            // }
 
-            println!("{}", to_colored_json_auto(&value).unwrap());
+            println!("{} - {}", module.path.file_name().unwrap().to_string_lossy().bright_black(), to_colored_json_auto(&value).unwrap());
         }
         Commands::Set {
             component,
@@ -104,9 +104,9 @@ fn main() -> Result<()> {
                 .set(&component, &property, &value)
                 .context("Unable to set property")?;
         }
-        Commands::List => {
-            println!("Listing all components");
-        }
+        // Commands::List => {
+        //     println!("Listing all components");
+        // }
     }
 
     Ok(())

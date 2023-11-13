@@ -38,7 +38,6 @@ std::string Hostname::Get()
 
 void Hostname::Set(const std::string name)
 {
-    const char* command = "hostnamectl set-hostname ";
-    std::string cmd = command + name;
-    Exec(cmd.c_str());
+    std::string command = "hostnamectl set-hostname --static " + name;
+    Exec(command.c_str());
 }

@@ -8,7 +8,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${MODULES_INC_DIR} ${RAPIDJSON
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
-        PREFIX ""
         POSITION_INDEPENDENT_CODE ON
     )
 

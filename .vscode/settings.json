@@ -1,5 +1,12 @@
 {
     "cmake.sourceDirectory": "${workspaceFolder}/src",
+    "cmake.configureArgs": [
+        "-DBUILD_ADAPTERS=OFF",
+        "-DBUILD_TESTS=OFF",
+        "-DBUILD_MODULETEST=OFF",
+        "-DBUILD_PLATFORM=OFF",
+        "-DBUILD_SAMPLES=OFF"
+    ],
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cmake.configureSettings": {
         "ENABLE_PAYLOAD_LOGGING": "OFF",

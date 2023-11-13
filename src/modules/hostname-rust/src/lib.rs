@@ -10,13 +10,13 @@ struct Hostname;
 #[osc_module]
 impl Hostname {
     #[osc(reported)]
-    fn name(&self) -> Result<String, Error> {
+    fn name() -> Result<String, Error> {
         let hostname = std::fs::read_to_string("/etc/hostname")?;
         Ok(hostname.trim().to_string())
     }
 
     #[osc(desired)]
-    fn desired_name(&mut self, name: String) -> Result<(), Error> {
+    fn desired_name(name: String) -> Result<(), Error> {
         std::fs::write("/etc/hostname", name)?;
         Ok(())
     }
