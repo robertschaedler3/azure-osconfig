@@ -33,17 +33,6 @@
 #define gettid() syscall(SYS_gettid)
 #endif
 
-#ifdef __cplusplus
-
-#include <algorithm>
-#include <cstdio>
-#include <cstring>
-#include <string>
-#include <regex>
-#include <rapidjson/document.h>
-#include <rapidjson/schema.h>
-#include <rapidjson/stringbuffer.h>
-
-#endif //__cplusplus
+#define PLAIN_STATUS_FROM_ERRNO(a) ((0 == a) ? "passed" : "failed")
 
 #endif // INTERNAL_H

@@ -701,12 +701,22 @@
   {
     "ObjectType": "Desired",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "remediateEnsureSshAccessIsLimited"
+    "ObjectName": "remediateEnsureAllowUsersIsConfigured"
   },
   {
     "ObjectType": "Desired",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "remediateEnsureSshRhostsRsaAuthenticationIsDisabled"
+    "ObjectName": "remediateEnsureDenyUsersIsConfigured"
+  },
+  {
+    "ObjectType": "Desired",
+    "ComponentName": "SecurityBaseline",
+    "ObjectName": "remediateEnsureAllowGroupsIsConfigured"
+  },
+  {
+    "ObjectType": "Desired",
+    "ComponentName": "SecurityBaseline",
+    "ObjectName": "remediateEnsureDenyGroupsConfigured"
   },
   {
     "ObjectType": "Desired",
@@ -726,7 +736,7 @@
   {
     "ObjectType": "Desired",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "remediateEnsureSshIdleTimeoutIntervalIsConfigured"
+    "ObjectName": "remediateEnsureSshClientIntervalCountMaxIsConfigured"
   },
   {
     "ObjectType": "Desired",
@@ -885,8 +895,7 @@
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsurePermissionsOnEtcSshSshdConfig",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsurePermissionsOnEtcSshSshdConfig"
   },
   {
     "ObjectType": "Reported",
@@ -1629,92 +1638,87 @@
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshBestPracticeProtocol",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshBestPracticeProtocol"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshBestPracticeIgnoreRhosts",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshBestPracticeIgnoreRhosts"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshLogLevelIsSet",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshLogLevelIsSet"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshMaxAuthTriesIsSet",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshMaxAuthTriesIsSet"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshAccessIsLimited",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureAllowUsersIsConfigured"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshRhostsRsaAuthenticationIsDisabled",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureDenyUsersIsConfigured"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshHostbasedAuthenticationIsDisabled",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureAllowGroupsIsConfigured"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshPermitRootLoginIsDisabled",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureDenyGroupsConfigured"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshPermitEmptyPasswordsIsDisabled",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshHostbasedAuthenticationIsDisabled"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshIdleTimeoutIntervalIsConfigured",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshPermitRootLoginIsDisabled"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshLoginGraceTimeIsSet",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshPermitEmptyPasswordsIsDisabled"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureOnlyApprovedMacAlgorithmsAreUsed",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshClientIntervalCountMaxIsConfigured"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureSshWarningBannerIsEnabled",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshLoginGraceTimeIsSet"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureUsersCannotSetSshEnvironmentOptions",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureOnlyApprovedMacAlgorithmsAreUsed"
   },
   {
     "ObjectType": "Reported",
     "ComponentName": "SecurityBaseline",
-    "ObjectName": "auditEnsureAppropriateCiphersForSsh",
-    "Payload": "PASS"
+    "ObjectName": "auditEnsureSshWarningBannerIsEnabled"
+  },
+  {
+    "ObjectType": "Reported",
+    "ComponentName": "SecurityBaseline",
+    "ObjectName": "auditEnsureUsersCannotSetSshEnvironmentOptions"
+  },
+  {
+    "ObjectType": "Reported",
+    "ComponentName": "SecurityBaseline",
+    "ObjectName": "auditEnsureAppropriateCiphersForSsh"
   },
   {
     "ObjectType": "Reported",

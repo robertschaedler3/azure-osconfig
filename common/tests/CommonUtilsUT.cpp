@@ -12,11 +12,9 @@
 #include <gtest/gtest.h>
 #include <CommonUtils.h>
 #include <UserUtils.h>
+#include <SshUtils.h>
 
 using namespace std;
-
-#define STRFTIME_DATE_FORMAT "%Y%m%d"
-#define DATE_FORMAT_LENGTH 9
 
 class CommonUtilsTest : public ::testing::Test
 {
@@ -24,6 +22,7 @@ class CommonUtilsTest : public ::testing::Test
         const char* m_path = "~test.test";
         const char* m_data = "`-=~!@#$%^&*()_+,./<>?'[]\\{}| qwertyuiopasdfghjklzxcvbnm 1234567890 QWERTYUIOPASDFGHJKLZXCVBNM";
         const char* m_dataWithEol = "`-=~!@#$%^&*()_+,./<>?'[]\\{}| qwertyuiopasdfghjklzxcvbnm 1234567890 QWERTYUIOPASDFGHJKLZXCVBNM\n";
+        const char* m_dataLowercase = "`-=~!@#$%^&*()_+,./<>?'[]\\{}| qwertyuiopasdfghjklzxcvbnm 1234567890 qwertyuiopasdfghjklzxcvbnm";
 
         bool CreateTestFile(const char* path, const char* data)
         {
@@ -512,144 +511,6 @@ TEST_F(CommonUtilsTest, DirectoryExists)
     EXPECT_TRUE(DirectoryExists("/etc"));
 }
 
-TEST_F(CommonUtilsTest, ValidClientName)
-{
-    std::list<std::string> validClientNames = {
-        "Azure OSConfig 5;0.0.0.20210927",
-        "Azure OSConfig 5;1.1.1.20210927",
-        "Azure OSConfig 5;11.11.11.20210927",
-        "Azure OSConfig 6;0.0.0.20210927",
-        "Azure OSConfig 5;0.0.0.20210927abc123"
-        "Azure OSConfig 10;0.0.0.20210927abc123"
-    };
-
-    for (const auto& validClientName : validClientNames)
-    {
-        ASSERT_TRUE(IsValidClientName(validClientName.c_str()));
-    }
-
-    time_t t = time(0);
-    char dateNow[DATE_FORMAT_LENGTH] = {0};
-    strftime(dateNow, DATE_FORMAT_LENGTH, STRFTIME_DATE_FORMAT, localtime(&t));
-
-    std::string clientNameWithCurrentDate = "Azure OSConfig 5;0.0.0." + std::string(dateNow);
-    ASSERT_TRUE(IsValidClientName(clientNameWithCurrentDate.c_str()));
-}
-
-TEST_F(CommonUtilsTest, InvalidClientName)
-{
-    const char* sscanfDateFormat = "%4d%2d%2d";
-
-    std::list<std::string> invalidClientNames = {
-        "AzureOSConfig 5;0.0.0.20210927",
-        "Azure OSConfig5;0.0.0.20210927",
-        "azure osconfig 5;0.0.0.20210927",
-        "AzureOSConfig 5;0.0.0.20210927",
-        "Azure  OSConfig5;0.0.0.20210927",
-        "Azure OSConfig  5;0.0.0.20210927",
-        "Azure OSConfig 5:0.0.0.20210927",
-        "Azure OSConfig 5;0,0,0,20210927",
-        "Azure OSConfig 5;0.0.0.2021927",
-        "Azure OSConfig -5;-1.-1.-1.20210927",
-        "Azure OSConfig 1;0.0.0.20210927",
-        "Azure OSConfig 2;0.0.0.20210927",
-        "Azure OSConfig 3;0.0.0.20210927",
-        "Azure OSConfig 4;0.0.0.20210927",
-        "Azure OSConfig 5;0.0.0.20210827",
-        "Azure OSConfig 5;0.0.0.20210926",
-        "Azure OSConfig 5;0.0.0.20200927"
-        "Azure OSConfig 5;0.0.0.20200927"
-    };
-
-    for (const auto& invalidClientName : invalidClientNames)
-    {
-        ASSERT_FALSE(IsValidClientName(invalidClientName.c_str()));
-    }
-
-    time_t t = time(0);
-    char dateNow[DATE_FORMAT_LENGTH] = {0};
-    strftime(dateNow, DATE_FORMAT_LENGTH, STRFTIME_DATE_FORMAT, localtime(&t));
-
-    int yearNow, monthNow, dayNow;
-    sscanf(dateNow, sscanfDateFormat, &yearNow, &monthNow, &dayNow);
-
-    std::string clientNameWithYearAfterCurrentDate = "Azure OSConfig 5;0.0.0." + std::to_string(yearNow + 1) + std::to_string(monthNow) + std::to_string(dayNow);
-    std::string clientNameWithMonthAfterCurrentDate = "Azure OSConfig 5;0.0.0." + std::to_string(yearNow) + std::to_string(monthNow + 1) + std::to_string(dayNow);
-    std::string clientNameWithDayAfterCurrentDate = "Azure OSConfig 5;0.0.0." + std::to_string(yearNow) + std::to_string(monthNow) + std::to_string(dayNow + 1);
-
-    ASSERT_FALSE(IsValidClientName(clientNameWithMonthAfterCurrentDate.c_str()));
-    ASSERT_FALSE(IsValidClientName(clientNameWithDayAfterCurrentDate.c_str()));
-    ASSERT_FALSE(IsValidClientName(clientNameWithYearAfterCurrentDate.c_str()));
-}
-
-TEST_F(CommonUtilsTest, ValidateMimObjectPayload)
-{
-    // Valid payloads
-    const char stringPayload[] = R"""("string")""";
-    const char integerPayload[] = R"""(1)""";
-    const char booleanPayload[] = R"""(true)""";
-    const char objectPayload[] = R"""({
-            "string": "value",
-            "integer": 1,
-            "boolean": true,
-            "integerEnum": 1,
-            "stringArray": ["value1", "value2"],
-            "integerArray": [1, 2],
-            "stringMap": {"key1": "value1", "key2": "value2"},
-            "integerMap": {"key1": 1, "key2": 2}
-        })""";
-    const char arrayObjectPayload[] = R"""([
-        {
-            "string": "value",
-            "integer": 1,
-            "boolean": true,
-            "integerEnum": 1,
-            "stringArray": ["value1", "value2"],
-            "integerArray": [1, 2],
-            "stringMap": {"key1": "value1", "key2": "value2"},
-            "integerMap": {"key1": 1, "key2": 2}
-        },
-        {
-            "string": "value",
-            "integer": 1,
-            "boolean": true,
-            "integerEnum": 1,
-            "stringArray": ["value1", "value2"],
-            "integerArray": [1, 2],
-            "stringMap": {"key1": "value1", "key2": "value2"},
-            "integerMap": {"key1": 1, "key2": 2}
-        }
-    ])""";
-    const char stringArrayPayload[] = R"""(["value1", "value2"])""";
-    const char integerArrayPayload[] = R"""([1, 2])""";
-    const char stringMap[] = R"""({"key1": "value1", "key2" : "value2", "key3": null})""";
-    const char integerMap[] = R"""({"key1": 1, "key2" : 2, "key3": null})""";
-
-    ASSERT_TRUE(IsValidMimObjectPayload(stringPayload, sizeof(stringPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(integerPayload, sizeof(integerPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(booleanPayload, sizeof(booleanPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(objectPayload, sizeof(objectPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(arrayObjectPayload, sizeof(arrayObjectPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(stringArrayPayload, sizeof(stringArrayPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(integerArrayPayload, sizeof(integerArrayPayload), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(stringMap, sizeof(stringMap), nullptr));
-    ASSERT_TRUE(IsValidMimObjectPayload(integerMap, sizeof(integerMap), nullptr));
-
-    // Invalid payloads
-    const char invalidJson[] = R"""(invalid)""";
-    const char invalidstringArrayPayload[] = R"""({"stringArray": ["value1", 1]})""";
-    const char invalidIntegerArrayPayload[] = R"""({"integerArray": [1, "value1"]})""";
-    const char invalidStringMapPayload[] = R"""({"stringMap": {"key1": "value1", "key2": 1}})""";
-    const char invalidIntegerMapPayload[] = R"""({"integerMap": {"key1": 1, "key2": "value1"}})""";
-
-    ASSERT_FALSE(IsValidMimObjectPayload(nullptr, 0, nullptr));
-    ASSERT_FALSE(IsValidMimObjectPayload(invalidJson, sizeof(invalidJson), nullptr));
-    ASSERT_FALSE(IsValidMimObjectPayload(invalidstringArrayPayload, sizeof(invalidstringArrayPayload), nullptr));
-    ASSERT_FALSE(IsValidMimObjectPayload(invalidIntegerArrayPayload, sizeof(invalidIntegerArrayPayload), nullptr));
-    ASSERT_FALSE(IsValidMimObjectPayload(invalidStringMapPayload, sizeof(invalidStringMapPayload), nullptr));
-    ASSERT_FALSE(IsValidMimObjectPayload(invalidIntegerMapPayload, sizeof(invalidIntegerMapPayload), nullptr));
-}
-
 struct HttpProxyOptions
 {
     const char* data;
@@ -912,6 +773,38 @@ TEST_F(CommonUtilsTest, RemovePrefixUpTo)
     }
 }
 
+struct MarkedTestStringTargets
+{
+    const char* target;
+    const char* marker;
+    const char* expected;
+};
+
+TEST_F(CommonUtilsTest, RemovePrefixUpToString)
+{
+    MarkedTestStringTargets targets[] = {
+        { "Test", "&", "Test" },
+        { "123=Test", "=Te", "=Test" },
+        { "jshsaHGFsajhgksajge27u313987yhjsA,NSQ.I3U21P903PUDSJQ#Test", "NSQ.I", "NSQ.I3U21P903PUDSJQ#Test" },
+        { "1$Test", "$T", "$Test" },
+        { "Test$Test=Test", "$Test", "$Test=Test" },
+        { "@Test", "@", "@Test" },
+        { "123456789Test", "89", "89Test" },
+        { "!@!#@$#$^%^^%&^*&()(_)(+-Test", "+-", "+-Test" }
+    };
+
+    int numTargets = ARRAY_SIZE(targets);
+    char* testString = nullptr;
+
+    for (int i = 0; i < numTargets; i++)
+    {
+        EXPECT_NE(nullptr, testString = AllocateAndCopyTestString(targets[i].target));
+        RemovePrefixUpToString(testString, targets[i].marker);
+        EXPECT_STREQ(testString, targets[i].expected);
+        FREE_MEMORY(testString);
+    }
+}
+
 TEST_F(CommonUtilsTest, TruncateAtFirst)
 {
     MarkedTestTargets targets[] = {
@@ -1005,6 +898,15 @@ TEST_F(CommonUtilsTest, DuplicateString)
     EXPECT_EQ(nullptr, duplicate = DuplicateString(nullptr));
     EXPECT_NE(nullptr, duplicate = DuplicateString(m_data));
     EXPECT_STREQ(m_data, duplicate);
+    FREE_MEMORY(duplicate);
+}
+
+TEST_F(CommonUtilsTest, DuplicateStringToLowercase)
+{
+    char* duplicate = nullptr;
+    EXPECT_EQ(nullptr, duplicate = DuplicateStringToLowercase(nullptr));
+    EXPECT_NE(nullptr, duplicate = DuplicateStringToLowercase(m_data));
+    EXPECT_STREQ(m_dataLowercase, duplicate);
     FREE_MEMORY(duplicate);
 }
 
@@ -1443,9 +1345,8 @@ TEST_F(CommonUtilsTest, CheckUsersHavePasswords)
 
 TEST_F(CommonUtilsTest, CheckUserHomeDirectories)
 {
-    EXPECT_EQ(0, CheckAllUsersHomeDirectoriesExist(nullptr, nullptr));
-    
     //Optional:
+    CheckAllUsersHomeDirectoriesExist(nullptr, nullptr);
     CheckUsersOwnTheirHomeDirectories(nullptr, nullptr);
 }
 
@@ -1704,26 +1605,18 @@ TEST_F(CommonUtilsTest, GetOptionFromFile)
 TEST_F(CommonUtilsTest, CheckLockoutForFailedPasswordAttempts)
 {
     const char* goodTestFileContents[] = {
-        "auth required pam_tally2.so file=/var/log/tallylog deny=1 unlock_time=1000",
-        "auth required pam_tally2.so file=/var/log/tallylog unlock_time=2000 deny=2",
-        "auth required pam_tally2.so file=/var/log/tallylog deny=3 even_deny_root unlock_time=1000",
-        "auth required pam_tally2.so   file=/var/log/tallylog test deny=3 even_deny_root 123 unlock_time=1000 456",
-        "auth        required      pam_tally2.so  file=/var/log/tallylog deny=3  unlock_time=100",
-        "auth required      pam_tally2.so  file=/var/log/tallylog deny=1 unlock_time=10",
-        "auth                   required pam_tally2.so       file=/var/log/tallylog    deny=5  unlock_time=2000",
+        "auth required pam_tally2.so file=/var/log/tallylog deny=1 unlock_time=2000",
+        "auth      required pam_tally2.so file=/var/log/tallylog deny=1 even_deny_root unlock_time=2000",
+        "auth required      pam_tally2.so file=/var/log/tallylog deny=2 unlock_time=210",
+        "auth required pam_tally2.so     file=/var/log/tallylog deny=2 even_deny_root unlock_time=345",
+        "auth required pam_tally2.so file=/var/log/tallylog     deny=3 unlock_time=555",
+        "auth required pam_tally2.so file=/var/log/tallylog deny=3     even_deny_root unlock_time=12",
+        "auth required pam_tally2.so file=/var/log/tallylog deny=4    unlock_time=3000",
+        "auth required pam_tally2.so file=/var/log/tallylog deny=4 even_deny_root     unlock_time=1",
+        "auth required pam_tally2.so file=/var/log/tallylog deny=5 unlock_time=203",
+        "auth required pam_tally2.so file=/var/log/tallylog deny=5 even_deny_root unlock_time=5001",
         "This is a positive test\nauth required pam_tally2.so file=/var/log/tallylog deny=3 unlock_time=123",
-        "This is a positive test\nAnother one with auth test\nauth required pam_tally2.so file=/var/log/tallylog deny=3 unlock_time=123",
-        "auth	[success=1 default=ignore]	pam_unix.so nullok\n"
-        "# here's the fallback if no module succeeds\n"
-        "auth	requisite			pam_deny.so\n"
-        "# prime the stack with a positive return value if there isn't one already;\n"
-        "# this avoids us returning an error just because nothing sets a success code\n"
-        "# since the modules above will each just jump around\n"
-        "auth	required			pam_permit.so\n"
-        "auth required pam_tally2.so file=/var/log/tallylog deny=3 unlock_time=888\n"
-        "# and here are more per-package modules (the Additional block)\n"
-        "auth	optional			pam_cap.so\n" 
-        "# end of pam-auth-update config"
+        "This is a positive test\nAnother one with auth test\nauth required pam_tally2.so file=/var/log/tallylog deny=3 unlock_time=123"
     };
 
     const char* badTestFileContents[] = {

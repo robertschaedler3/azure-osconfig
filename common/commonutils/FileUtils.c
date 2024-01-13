@@ -54,14 +54,13 @@ bool SavePayloadToFile(const char* fileName, const char* payload, const int payl
 {
     FILE* file = NULL;
     int i = 0;
-    bool result = false;
+    bool result = true;
 
     if (fileName && payload && (0 < payloadSizeBytes))
     {
         if (NULL != (file = fopen(fileName, "w")))
         {
-            result = LockFile(file, log);
-            if (result)
+            if (true == (result = LockFile(file, log)))
             {
                 for (i = 0; i < payloadSizeBytes; i++)
                 {
@@ -74,12 +73,23 @@ bool SavePayloadToFile(const char* fileName, const char* payload, const int payl
 
                 UnlockFile(file, log);
             }
+            else
+            {
+                OsConfigLogError(log, "SavePayloadToFile: cannot lock '%s' for exclusive access while writing (%d)", fileName, errno);
+            }
+            
             fclose(file);
         }
         else
         {
+            result = false;
             OsConfigLogError(log, "SavePayloadToFile: cannot open for write '%s' (%d)", fileName, errno);
         }
+    }
+    else
+    {
+        result = false;
+        OsConfigLogError(log, "SavePayloadToFile: invalid arguments (%s, '%s', %d)", fileName, payload, payloadSizeBytes);
     }
 
     return result;
@@ -148,17 +158,11 @@ static bool LockUnlockFile(FILE* file, bool lock, void* log)
 
     if (-1 == (fileDescriptor = fileno(file)))
     {
-        if (IsFullLoggingEnabled())
-        {
-            OsConfigLogError(log, "LockFile: fileno failed with %d", errno);
-        }
+        OsConfigLogError(log, "LockFile: fileno failed with %d", errno);
     }
     else if (0 != (lockResult = flock(fileDescriptor, lockOperation)))
     {
-        if (IsFullLoggingEnabled())
-        {
-            OsConfigLogError(log, "LockFile: flock(%d) failed with %d", lockOperation, errno);
-        }
+        OsConfigLogError(log, "LockFile: flock(%d) failed with %d", lockOperation, errno);
     }
 
     return (0 == lockResult) ? true : false;
@@ -278,6 +282,7 @@ static int CheckAccess(bool directory, const char* name, int desiredOwnerId, int
                         OsConfigLogInfo(log, "CheckAccess: access to '%s' (%d) matches expected (%d)", name, currentMode, desiredMode);
                     }
                     
+                    OsConfigCaptureSuccessReason(reason, "%sAccess to '%s' matches required access (%d) and ownership (UID: %d, GID: %u)", name, desiredMode, desiredOwnerId, desiredGroupId);
                     result = 0;
                 }
             }
@@ -290,6 +295,7 @@ static int CheckAccess(bool directory, const char* name, int desiredOwnerId, int
     else
     {
         OsConfigLogInfo(log, "CheckAccess: '%s' not found, nothing to check", name);
+        OsConfigCaptureSuccessReason(reason, "%s%s not found, nothing to check", name);
         result = 0;
     }
 
@@ -960,7 +966,7 @@ int CheckLineNotFoundOrCommentedOut(const char* fileName, char commentMark, cons
                 else
                 {
                     foundUncommented = true;
-                    OsConfigLogInfo(log, "CheckLineNotFoundOrCommentedOut: '%s' found in '%s' at position %ld uncommented with '%c'", 
+                    OsConfigLogInfo(log, "CheckLineNotFoundOrCommentedOut: '%s' found in '%s' at position %ld and it's not commented out with '%c'", 
                         text, fileName, (long)(found - contents), commentMark);
                 }
 
@@ -968,11 +974,6 @@ int CheckLineNotFoundOrCommentedOut(const char* fileName, char commentMark, cons
             }
 
             status = foundUncommented ? EEXIST : 0;
-
-            if (EEXIST == status)
-            {
-                OsConfigLogInfo(log, "CheckLineNotFoundOrCommentedOut: '%s' not found uncommented with '%c' in '%s'", text, commentMark, fileName);
-            }
 
             FREE_MEMORY(contents);
         }
@@ -1184,214 +1185,7 @@ int CheckLockoutForFailedPasswordAttempts(const char* fileName, void* log)
         }
     }
 
-    OsConfigLogInfo(log, "CheckLockoutForFailedPasswordAttempts: %s (%d)", status ? "failed" : "passed", status);
-
-    return status;
-}
-
-static char* GetSshServerState(const char* name, void* log)
-{
-    const char* commandTemplate = "sshd -T | grep %s";
-    char* command = NULL;
-    char* textResult = NULL;
-    int status = 0;
-
-    if (NULL == name)
-    {
-        OsConfigLogError(log, "GetSshServerState: invalid name argument");
-        return textResult;
-    }
-
-    if (NULL != (command = FormatAllocateString(commandTemplate, name)))
-    {
-        if (0 != (status = ExecuteCommand(NULL, command, true, false, 0, 0, &textResult, NULL, NULL)))
-        {
-            OsConfigLogError(log, "GetSshServerState: '%s' failed with %d", command, status);
-        }
-        else if (NULL != textResult)
-        {
-            RemovePrefixUpTo(textResult, ' ');
-            RemovePrefixBlanks(textResult);
-        }
-    }
-    else
-    {
-        OsConfigLogError(log, "GetSshServerState: FormatAllocateString failed");
-    }
-
-    FREE_MEMORY(command);
-
-    return textResult;
-}
-
-int CheckOnlyApprovedMacAlgorithmsAreUsed(const char** macs, unsigned int numberOfMacs, char** reason, void* log)
-{
-    const char* sshServer = "sshd";
-    const char* sshMacs = "macs";
-
-    char* macsValue = NULL;
-    char* value = NULL;
-    size_t macsValueLength = 0;
-    size_t i = 0, j = 0;
-    bool macFound = false;
-    int status = 0;
-
-    if ((NULL == macs) || (0 == numberOfMacs))
-    {
-        OsConfigLogError(log, "CheckOnlyApprovedMacAlgorithmsAreUsed: invalid arguments (%p, %u)", macs, numberOfMacs);
-        return EINVAL;
-    }
-    else if (false == IsDaemonActive(sshServer, log))
-    {
-        OsConfigLogInfo(log, "CheckOnlyApprovedMacAlgorithmsAreUsed: SSH Server daemon '%s' is not active on this device", sshServer);
-        return status;
-    }
-
-    if (NULL == (macsValue = GetSshServerState(sshMacs, log)))
-    {
-        OsConfigLogError(log, "CheckOnlyApprovedMacAlgorithmsAreUsed: '%s' not found in SSH Server response from 'sshd -T'", sshMacs);
-        OsConfigCaptureReason(reason, "'%s' not found in SSH Server response", "%s, also '%s' not found in SSH Server response", sshMacs);
-        status = ENOENT;
-    }
-    else
-    {
-        macsValueLength = strlen(macsValue);
-
-        for (i = 0; i < macsValueLength; i++)
-        {
-            if (NULL == (value = DuplicateString(&(macsValue[i]))))
-            {
-                OsConfigLogError(log, "CheckOnlyApprovedMacAlgorithmsAreUsed: failed to duplicate string");
-                status = ENOMEM;
-                break;
-            }
-            else
-            {
-                TruncateAtFirst(value, ',');
-
-                for (j = 0; j < numberOfMacs; j++)
-                {
-                    if (0 == strcmp(value, macs[j]))
-                    {
-                        macFound = true;
-                        break;
-                    }
-                }
-                    
-                if (false == macFound)
-                {
-                    status = ENOENT;
-                    OsConfigLogError(log, "CheckOnlyApprovedMacAlgorithmsAreUsed: unapproved MAC algorithm '%s' found in SSH Server response", value);
-                    OsConfigCaptureReason(reason, "Unapproved MAC algorithm '%s' found in SSH Server response", "%s, also MAC algorithm '%s' is unapproved", value);
-                }
-
-                i += strlen(value);
-
-                macFound = false;
-
-                FREE_MEMORY(value);
-
-                continue;
-            }
-        }
-    }
-
-    FREE_MEMORY(macsValue);
-
-    OsConfigLogInfo(log, "CheckOnlyApprovedMacAlgorithmsAreUsed: %s (%d)", status ? "failed" : "passed", status);
-
-    return status;
-}
-
-int CheckAppropriateCiphersForSsh(const char** ciphers, unsigned int numberOfCiphers, char** reason, void* log)
-{
-    const char* sshServer = "sshd";
-    const char* sshCiphers = "ciphers";
-
-    char* ciphersValue = NULL;
-    char* value = NULL;
-    size_t ciphersValueLength = 0;
-    size_t i = 0, j = 0;
-    bool cipherFound = false;
-    int status = 0;
-
-    if ((NULL == ciphers) || (0 == numberOfCiphers))
-    {
-        OsConfigLogError(log, "CheckAppropriateCiphersForSsh: invalid arguments (%p, %u)", ciphers, numberOfCiphers);
-        return EINVAL;
-    }
-    else if (false == IsDaemonActive(sshServer, log))
-    {
-        OsConfigLogInfo(log, "CheckAppropriateCiphersForSsh: SSH Server daemon '%s' is not active on this device", sshServer);
-        return status;
-    }
-
-    if (NULL == (ciphersValue = GetSshServerState(sshCiphers, log)))
-    {
-        OsConfigLogError(log, "CheckAppropriateCiphersForSsh: '%s' not found in SSH Server response", sshCiphers);
-        OsConfigCaptureReason(reason, "'%s' not found in SSH Server response", "%s, also '%s' not found in SSH Server response", sshCiphers);
-        status = ENOENT;
-    }
-    else
-    {
-        ciphersValueLength = strlen(ciphersValue);
-
-        for (i = 0; i < ciphersValueLength; i++)
-        {
-            if (NULL == (value = DuplicateString(&(ciphersValue[i]))))
-            {
-                OsConfigLogError(log, "CheckAppropriateCiphersForSsh: failed to duplicate string");
-                status = ENOMEM;
-                break;
-            }
-            else
-            {
-                TruncateAtFirst(value, ',');
-
-                for (j = 0; j < numberOfCiphers; j++)
-                {
-                    if (0 == strcmp(value, ciphers[j]))
-                    {
-                        cipherFound = true;
-                        break;
-                    }
-                }
-
-                if (false == cipherFound)
-                {
-                    status = ENOENT;
-                    OsConfigLogError(log, "CheckAppropriateCiphersForSsh: unapproved cipher '%s' found in SSH Server response", value);
-                    OsConfigCaptureReason(reason, "Unapproved cipher '%s' found in SSH Server response", "%s, also cipher '%s' is unapproved", value);
-                }
-
-                i += strlen(value);
-
-                cipherFound = false;
-
-                FREE_MEMORY(value);
-
-                continue;
-            }
-        }
-
-        for (j = 0; j < numberOfCiphers; j++)
-        {
-            if (NULL == strstr(ciphersValue, ciphers[j]))
-            {
-                status = ENOENT;
-                OsConfigLogError(log, "CheckAppropriateCiphersForSsh: required cipher '%s' not found in SSH Server response", ciphers[j]);
-                OsConfigCaptureReason(reason, "Required cipher '%s' not found in SSH Server response", "%s, also required cipher '%s' is not found", ciphers[j]);
-            }
-            else
-            {
-                OsConfigLogInfo(log, "CheckAppropriateCiphersForSsh: required cipher '%s' found in SSH Server response", ciphers[j]);
-            }
-        }
-    }
-
-    FREE_MEMORY(ciphersValue);
-
-    OsConfigLogInfo(log, "CheckAppropriateCiphersForSsh: %s (%d)", status ? "failed" : "passed", status);
+    OsConfigLogInfo(log, "CheckLockoutForFailedPasswordAttempts: %s (%d)", PLAIN_STATUS_FROM_ERRNO(status), status);
 
     return status;
 }

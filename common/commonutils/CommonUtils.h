@@ -34,6 +34,19 @@
     }\
 }\
 
+#define OsConfigCaptureSuccessReason(reason, FORMAT, ...) {\
+    if (NULL != reason) {\
+        FREE_MEMORY(*reason);\
+        *reason = FormatAllocateString(FORMAT, SECURITY_AUDIT_PASS, ##__VA_ARGS__); \
+    }\
+}\
+
+#define OsConfigResetReason(reason) {\
+    if (NULL != reason) {\
+        FREE_MEMORY(*reason);\
+    }\
+}\
+
 // Linefeed (LF) ASCII character
 #ifndef EOL
 #define EOL 10
@@ -50,6 +63,9 @@
 // Uncomment next line when the PROTOCOL_MQTT macro will be needed (compiling with -Werror-unused-macros)
 //#define PROTOCOL_MQTT 1 
 #define PROTOCOL_MQTT_WS 2
+
+#define SECURITY_AUDIT_PASS "PASS"
+#define SECURITY_AUDIT_FAIL "FAIL"
 
 #ifdef __cplusplus
 extern "C"
@@ -98,20 +114,16 @@ int CheckLineNotFoundOrCommentedOut(const char* fileName, char commentMark, cons
 int FindTextInCommandOutput(const char* command, const char* text, char** reason, void* log);
 
 int CheckLockoutForFailedPasswordAttempts(const char* fileName, void* log);
-int CheckOnlyApprovedMacAlgorithmsAreUsed(const char** macs, unsigned int numberOfMacs, char** reason, void* log);
-int CheckAppropriateCiphersForSsh(const char** ciphers, unsigned int numberOfCiphers, char** reason, void* log);
 
 char* GetStringOptionFromFile(const char* fileName, const char* option, char separator, void* log);
 int GetIntegerOptionFromFile(const char* fileName, const char* option, char separator, void* log);
 
 char* DuplicateString(const char* source);
+char* DuplicateStringToLowercase(const char* source);
 char* FormatAllocateString(const char* format, ...);
 
 size_t HashString(const char* source);
 char* HashCommand(const char* source, void* log);
-
-bool IsValidClientName(const char* name);
-bool IsValidMimObjectPayload(const char* payload, const int payloadSizeBytes, void* log);
 
 bool ParseHttpProxyData(const char* proxyData, char** hostAddress, int* port, char**username, char** password, void* log);
 
@@ -141,6 +153,7 @@ long GetPassWarnAge(void* log);
 
 void RemovePrefixBlanks(char* target);
 void RemovePrefixUpTo(char* target, char marker);
+void RemovePrefixUpToString(char* target, const char* marker);
 void RemoveTrailingBlanks(char* target);
 void TruncateAtFirst(char* target, char marker);
 
