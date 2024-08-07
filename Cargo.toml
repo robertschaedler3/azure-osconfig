@@ -1,3 +1,6 @@
 workspace.members = [
-    "platform"
+    "blah",
+    "platform",
+    "baseline",
+    "baseline_codegen"
 ]
